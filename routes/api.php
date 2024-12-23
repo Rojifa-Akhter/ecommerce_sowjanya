@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\backend\AuthController;
+use App\Http\Controllers\backend\OrderController;
 use App\Http\Controllers\Backend\ProductController;
 use App\Http\Controllers\Backend\UserController;
 use Illuminate\Http\Request;
@@ -50,6 +51,10 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
 Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/notifications', [UserController::class, 'getNotifications']);
     Route::get('/notifications/{id}', [UserController::class, 'markNotificationAsRead']);
+    Route::get('/showProduct/{id}', [OrderController::class, 'showProduct']);
+    Route::get('/profile', [UserController::class, 'profile']);
+    Route::post('/create-order', [OrderController::class, 'createOrder']);
+
  });
 
 Route::middleware(['auth:api'])->group(function () {

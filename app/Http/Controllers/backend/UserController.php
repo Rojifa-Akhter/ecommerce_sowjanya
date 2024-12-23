@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Backend;
 
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use App\Models\User;
 
@@ -37,5 +38,15 @@ class UserController extends Controller
         }
 
         return response()->json(['message' => 'Notification marked as read.'], 200);
+    }
+    public function profile(Request $request)
+    {
+        // $profile = User::with();
+    }
+
+    //admin 
+    public function viewUserInfo (Request $request)
+    {
+        
     }
 }

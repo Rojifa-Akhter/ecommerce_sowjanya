@@ -13,8 +13,19 @@ return new class extends Migration
     {
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
-            $table->timestamps();
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade'); 
+            $table->foreignId('product_id')->constrained('products')->onDelete('cascade'); 
+            $table->string('transaction_id')->nullable();
+            $table->decimal('amount', 8, 2);
+            $table->string('status')->default('pending');
+            $table->string('street_address')->nullable(); 
+            $table->string('city')->nullable(); 
+            $table->string('contact')->nullable(); 
+            $table->string('state')->nullable(); 
+            $table->string('zip_code')->nullable(); 
+            $table->timestamps(); 
         });
+        
     }
 
     /**
