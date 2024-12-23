@@ -70,11 +70,11 @@ class ProductController extends Controller
             'price' => 'required|numeric',
             'sale_price' => 'required|numeric',
             'SKU' => 'nullable|string',
-            'color' => 'nullable|array',  
+            'color' => 'nullable|array',
             'quantity' => 'required|integer|min:0',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
         ]);
-    
+
         $imagePaths = [];
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
@@ -82,7 +82,7 @@ class ProductController extends Controller
                 $imagePaths[] = asset('storage/' . $path);
             }
         }
-    
+
         $colors = $request->color ? json_encode($request->color) : null;
 
         $stockStatus = 'In Stock'; //stock status
@@ -114,25 +114,52 @@ class ProductController extends Controller
         if ($product->wasRecentlyCreated) {
             Notification::send(User::all(), new ProductAddedNotification($product));
         }
-    
+
         return response()->json([
             'message' => $message,
             'product' => $product,
         ], 200);
-    }   
+    }
 
     // List All Products
     public function productList(Request $request)
     {
-        $per_page = $request->per_page ?? 15;
+        $perPage = $request->query('per_page', 10);
 
-        $products = Product::paginate($per_page);
-        $products->getCollection()->transform(function ($product) {
-           
-            $product->color = json_decode($product->color, true);
-    
+        if ($perPage <= 0) {
+            return response()->json(['message' => "'per_page' must be a positive number."], 400);
+        }
+
+        $search = $request->input('search');
+        $filter = $request->input('filter');
+
+        $productsQuery = Product::query();
+
+        // Search logic
+        if ($search) {
+            $productsQuery->where(function ($query) use ($search) {
+                $query->where('title', 'LIKE', "%{$search}%")
+                    ->orWhere('stock', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // Filter logic
+        if ($filter === 'title') {
+            $productsQuery->orderBy('title', 'asc');
+        } elseif ($filter === 'stock') {
+            $productsQuery->orderBy('stock', 'desc');
+        }
+
+        $products = $productsQuery->select('title', 'image', 'price', 'quantity', 'no_of_sale', 'stock')
+            ->paginate($perPage);
+
+        $defaultImage = asset('img/default-product.webp');
+
+        $products->getCollection()->transform(function ($product) use ($defaultImage) {
+            $product->image = $product->image ?: $defaultImage;
             return $product;
         });
+
         return response()->json(['products' => $products], 200);
     }
 

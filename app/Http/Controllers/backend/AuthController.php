@@ -1,15 +1,18 @@
 <?php
 
 namespace App\Http\Controllers\backend;
-use Exception;
-use Illuminate\Support\Facades\Log;
-use App\Models\User;
-use Illuminate\Http\Request;
+
 use App\Http\Controllers\Controller;
 use App\Mail\sendOTP;
+use App\Models\Order;
+use App\Models\User;
+use Carbon\Traits\Week;
+use Exception;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -303,5 +306,76 @@ class AuthController extends Controller
         auth('api')->logout();
         return response()->json(['message' => 'Successfully logged out']);
     }
-    
+    //admin show user data
+    public function viewUserInfo(Request $request)
+    {
+        $perPage = $request->query('per_page', 10);
+
+        if ($perPage <= 0) {
+            return response()->json(['message' => "'per_page' must be a positive number."], 400);
+        }
+
+        $search = $request->input('search');
+        $filter = $request->input('filter');
+        $admin = auth()->user();
+
+        //admin info dont show
+        $usersQuery = User::where('role', 'USER')->where('id', '!=', $admin->id);//admin info dont show
+
+        if ($search) {
+            $usersQuery->where(function ($query) use ($search) {
+                $query->where('name', 'LIKE', "%{$search}%")
+                    ->orWhere('email', 'LIKE', "%{$search}%")
+                    ->orWhere('id', 'LIKE', "%{$search}%");
+            });
+        }
+
+        if ($filter === 'name') {
+            $usersQuery->orderBy('name', 'asc');
+        } elseif ($filter === 'email') {
+            $usersQuery->orderBy('email', 'asc');
+        } elseif ($filter === 'userid') {
+            $usersQuery->orderBy('id', 'asc');
+        }
+
+        $users = $usersQuery->with(['orders.product:id,title'])
+            ->select('id', 'name', 'email', 'image', 'created_at')
+            ->paginate($perPage);
+
+        $defaultAvatar = asset('img/1.webp');
+
+        $users->getCollection()->transform(function ($user) use ($defaultAvatar) {
+            $user->image = $user->image ?: $defaultAvatar;
+            $user->bought_product = $user->orders->count(); // Count total orders
+
+            unset($user->orders); // Remove raw orders data
+            return $user;
+        });
+
+        // Return response
+        if ($users->isEmpty()) {
+            return response()->json(['users_message' => "There is no one by this search criteria."], 200);
+        }
+
+        return response()->json(['users' => $users], 200);
+    }
+
+    //dashboard for admin
+
+    public function getDashboardStatistics()
+    {
+
+        $totalUsers = User::count();
+
+        $totalOrders = Order::count();
+
+        // $totalEarning = Order::selectRaw(Week('created_at'));
+
+        return response()->json([
+            'total_users' => $totalUsers,
+            'total_orders' => $totalOrders,
+            // 'total_earning' => $totalEarning,
+        ], 200);
+    }
+
 }

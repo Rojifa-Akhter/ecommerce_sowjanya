@@ -47,6 +47,15 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
     Route::post('/faq-update/{id}', [ProductController::class, 'faqUpdate']);
     Route::delete('/faq-delete/{id}', [ProductController::class, 'faqDelete']);
 
+    //users
+    Route::get('/users', [AuthController::class, 'viewUserInfo']);
+
+    //dashboard
+    Route::get('/total-user', [AuthController::class, 'getDashboardStatistics']);
+    Route::get('/website-visitor', [AuthController::class, 'websiteVisitor']);
+    Route::get('/traffic-sourch', [AuthController::class, 'trafficSourch']);
+
+
 });
 Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/notifications', [UserController::class, 'getNotifications']);
