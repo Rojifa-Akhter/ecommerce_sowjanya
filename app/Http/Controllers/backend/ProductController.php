@@ -27,7 +27,7 @@ class ProductController extends Controller
         ]);
 
         return response()->json([
-            'status' => 'success' ,
+            'status' => 'success',
             'message' => 'Category added successfully', 'category' => $category], 200);
     }
 
@@ -36,8 +36,8 @@ class ProductController extends Controller
     {
         $categories = Category::all();
         return response()->json([
-             'status' => 'success' ,
-             'categories' => $categories], 200);
+            'status' => 'success',
+            'categories' => $categories], 200);
     }
 
     // Update Category
@@ -53,8 +53,8 @@ class ProductController extends Controller
         ]);
 
         return response()->json([
-             'status' => 'success' ,
-             'message' => 'Category updated successfully', 'category' => $category], 200);
+            'status' => 'success',
+            'message' => 'Category updated successfully', 'category' => $category], 200);
     }
 
     // Delete Category
@@ -64,8 +64,8 @@ class ProductController extends Controller
         $category->delete();
 
         return response()->json([
-             'status' => 'success' ,
-             'message' => 'Category deleted successfully'], 200);
+            'status' => 'success',
+            'message' => 'Category deleted successfully'], 200);
     }
     // Add Product
     public function productAdd(Request $request)
@@ -162,7 +162,7 @@ class ProductController extends Controller
         $products = $productsQuery->select('title', 'image', 'price', 'quantity', 'no_of_sale', 'stock')
             ->paginate($perPage);
 
-        $defaultImage = asset('img/default-product.webp');
+        $defaultImage = asset('img/1.webp');
 
         $products->getCollection()->transform(function ($product) use ($defaultImage) {
             $product->image = $product->image ?: $defaultImage;
@@ -170,8 +170,8 @@ class ProductController extends Controller
         });
 
         return response()->json([
-             'status' => 'success' ,
-             'products' => $products], 200);
+            'status' => 'success',
+            'products' => $products], 200);
     }
 
     // Update Product
@@ -250,8 +250,8 @@ class ProductController extends Controller
         $product->delete();
 
         return response()->json([
-             'status' => 'success' ,
-             'message' => 'Product deleted successfully'], 200);
+            'status' => 'success',
+            'message' => 'Product deleted successfully'], 200);
     }
 
     //blog
@@ -261,23 +261,28 @@ class ProductController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'date' => 'required|date',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
-            'images' => 'max:5',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
         ]);
 
-        $imagePaths = [];
-        if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('blog_images', 'public');
-                $imagePaths[] = asset('storage/' . $path);
-            }
+        if ($request->hasFile('image') && is_array($request->file('image'))) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Only one image can be uploaded.',
+            ], 400);
+        }
+
+        $imagePath = null;
+
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('blog_images', 'public');
+            $imagePath = asset('storage/' . $path);
         }
 
         $blog = Blog::create([
             'title' => $validated['title'],
             'description' => $validated['description'],
             'date' => $validated['date'],
-            'image' => $imagePaths,
+            'image' => $imagePath,
         ]);
 
         return response()->json([
@@ -286,6 +291,7 @@ class ProductController extends Controller
             'blog' => $blog,
         ], 200);
     }
+
 // Update Product
     public function blogUpdate(Request $request, $id)
     {
@@ -293,8 +299,7 @@ class ProductController extends Controller
             'title' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'date' => 'nullable|date',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
-            'images' => 'max:5',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
         ]);
 
         $blog = Blog::findOrFail($id);
@@ -309,38 +314,35 @@ class ProductController extends Controller
             $blog->date = $validated['date'];
         }
 
-        $imagePaths = [];
-        if ($request->hasFile('images')) {
-            if (count($request->file('images')) > 5) {
-                return response()->json(['error' => 'You can upload a maximum of 5 images.'], 400);
-            }
+        if ($request->hasFile('image')) {
+            // Store the new image
+            $path = $request->file('image')->store('blog_images', 'public');
+            $imagePath = asset('storage/' . $path);
 
-            foreach ($request->file('images') as $image) {
-                if ($image->isValid()) {
-                    $path = $image->store('blog_images', 'public');
-                    $imagePaths[] = asset('storage/' . $path);
-                } else {
-                    return response()->json(['error' => 'One or more images failed to upload.'], 400);
-                }
-            }
-
-            $blog->image = json_encode($imagePaths);
+            $blog->image = $imagePath;
         }
-
         $blog->save();
 
-        $blog->image = json_decode($blog->$image);
-
+        // Return the response
         return response()->json([
             'status' => 'success',
             'message' => 'Blog updated successfully',
             'blog' => $blog,
         ], 200);
     }
+
     public function blogList()
     {
-        $blogs = Blog::all();
-        return response()->json(['blog' => $blogs], 200);
+        $defaultImage = asset('img/1.webp');
+
+        $blogs = Blog::all()->map(function ($blog) use ($defaultImage) {
+            $blog->image = $blog->image ?? $defaultImage;
+            return $blog;
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'blogs' => $blogs], 200);
     }
 
     public function blogDelete($id)
@@ -349,8 +351,8 @@ class ProductController extends Controller
         $blog->delete();
 
         return response()->json([
-             'status' => 'success' ,
-             'message' => 'Blog deleted successfully'], 200);
+            'status' => 'success',
+            'message' => 'Blog deleted successfully'], 200);
     }
     //about us
     public function aboutAdd(Request $request)
@@ -412,7 +414,7 @@ class ProductController extends Controller
         $about->save();
 
         return response()->json([
-            'status' => 'success' ,
+            'status' => 'success',
             'message' => 'About updated successfully',
             'about' => [
                 'id' => $about->id,
@@ -430,8 +432,8 @@ class ProductController extends Controller
         $about->delete();
 
         return response()->json([
-             'status' => 'success' ,
-             'message' => 'About deleted successfully'], 200);
+            'status' => 'success',
+            'message' => 'About deleted successfully'], 200);
     }
     //faq add, update delete
     public function faqAdd(Request $request)
@@ -471,7 +473,7 @@ class ProductController extends Controller
         $faq->save();
 
         return response()->json([
-            'status' => 'success' ,
+            'status' => 'success',
             'message' => 'FAQ updated successfully',
             'faq' => [
                 'id' => $faq->id,
@@ -487,7 +489,7 @@ class ProductController extends Controller
         $faq->delete();
 
         return response()->json([
-             'status' => 'success' ,
-             'message' => 'FAQ deleted successfully'], 200);
+            'status' => 'success',
+            'message' => 'FAQ deleted successfully'], 200);
     }
 }

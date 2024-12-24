@@ -20,7 +20,8 @@ class AuthController extends Controller
 {
     public function signup(Request $request)
     {
-        $validated = $request->validate([
+
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|unique:users,email',
             'address' => 'nullable|string|max:255',
@@ -29,6 +30,10 @@ class AuthController extends Controller
             // 'role' => 'required|in:ADMIN,OWNER,USER',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
         ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => false, 'message' => $validator->errors()], 400);
+        }
 
         $imagePath = null;
         if ($request->has('image')) {
@@ -41,11 +46,11 @@ class AuthController extends Controller
         $otp_expires_at = now()->addMinutes(10);
 
         $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'address' => $validated['address'] ?? null,
-            'contact' => $validated['contact'] ?? null,
-            'password' => bcrypt($validated['password']),
+            'name' => $request->name,
+            'email' => $request->email,
+            'address' => $request->address,
+            'contact' => $request->contact,
+            'password' => Hash::make($request->password),
             'role' => 'USER', // Set default role as 'user'
             'image' => $imagePath,
             'otp' => $otp,
@@ -76,9 +81,8 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response($validator->messages(), 200);
+            return response()->json(['status' => false, 'message' => $validator->errors()], 400);
         }
-
         $user = User::where('otp', $request->otp)->first();
 
         if ($user) {
@@ -108,7 +112,7 @@ class AuthController extends Controller
         if ($token = Auth::guard('api')->attempt($credentials)) {
             $user = Auth::guard('api')->user();
 
-            $user->image = $user->image ?? asset('img/default-user.webp');
+            $user->image = $user->image ?? asset('img/1.webp');
 
             return response()->json([
                 'status' => 'success',
@@ -274,6 +278,7 @@ class AuthController extends Controller
     // reset password
     public function resetPassword(Request $request)
     {
+        // return $request;
         $request->validate([
             'email' => 'required|email',
             'password' => 'required|string|min:6|confirmed',
@@ -449,7 +454,7 @@ class AuthController extends Controller
         ], 200);
     }
     //website visitor
-    public function websiteVisitor(Request $request)
+    public function analytics(Request $request)
     {
         $year = $request->query('year', date('Y'));
 
@@ -468,9 +473,9 @@ class AuthController extends Controller
             ];
         }
 
-        return response()->json(['status'=> 'success',
-            $statistics],  200
-            );
+        return response()->json(['status' => 'success',
+            $statistics], 200
+        );
     }
 
 }

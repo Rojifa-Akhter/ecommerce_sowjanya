@@ -149,15 +149,27 @@ class UserController extends Controller
     }
     public function ownProfile(Request $request)
     {
-
-        $user = User::select('id', 'name', 'image', 'email', 'role')->first();
-
+        $user = Auth::user();
+    
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized',
+            ], 401);
+        }
         $user->image = $user->image ?? asset('img/1.webp');
-
+    
         return response()->json([
             'status' => 'success',
-            'data' => $user,
+            'data' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'image' => $user->image,
+            ],
         ]);
     }
+    
 
 }

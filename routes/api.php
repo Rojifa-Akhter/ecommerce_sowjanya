@@ -26,6 +26,7 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
    Route::post('/category-add', [ProductController::class, 'categoryAdd']);
    Route::post('/category-update/{id}', [ProductController::class, 'categoryUpdate']);
    Route::delete('/category-delete/{id}', [ProductController::class, 'categoryDelete']);
+   Route::get('/category-list', [ProductController::class, 'categoryList']);
 
    // Product Routes
    Route::post('/product-add', [ProductController::class, 'productAdd']);
@@ -53,13 +54,14 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
 
     //dashboard
     Route::get('/statistics', [AuthController::class, 'getDashboardStatistics']);
-    Route::get('/website-visitor', [AuthController::class, 'websiteVisitor']);
+    Route::get('/analytics', [AuthController::class, 'analytics']);
     Route::get('/traffic-sourch', [AuthController::class, 'trafficSourch']);
 
 
 });
 Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/product-view', [UserController::class, 'productView']);
+    Route::get('/blog-list', [ProductController::class, 'blogList']);
 
     Route::get('/myprofile', [UserController::class, 'myprofile']);
     Route::get('/own-profile', [UserController::class, 'ownProfile']);
@@ -74,8 +76,4 @@ Route::middleware(['auth:api', 'USER'])->group(function () {
 
  });
 
-Route::middleware(['auth:api'])->group(function () {
-    // Routes accessible to both ADMIN and USER
-    Route::get('/category-list', [ProductController::class, 'categoryList']);
-    Route::get('/blog-list', [ProductController::class, 'blogList']);
-});
+
