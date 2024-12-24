@@ -21,6 +21,8 @@ return new class extends Migration
             $table->string('contact')->nullable();
             $table->json('image')->nullable();
             $table->string('otp')->nullable();
+            $table->string('otp_expires_at')->nullable();
+            $table->enum('status',['inactive','active'])->default('inactive');
             $table->timestamp('email_verified_at')->nullable();
             $table->rememberToken();
             $table->timestamps();

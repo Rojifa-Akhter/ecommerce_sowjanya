@@ -26,14 +26,18 @@ class ProductController extends Controller
             'name' => $validated['name'],
         ]);
 
-        return response()->json(['message' => 'Category added successfully', 'category' => $category], 200);
+        return response()->json([
+            'status' => 'success' ,
+            'message' => 'Category added successfully', 'category' => $category], 200);
     }
 
     // List All Categories
     public function categoryList()
     {
         $categories = Category::all();
-        return response()->json(['categories' => $categories], 200);
+        return response()->json([
+             'status' => 'success' ,
+             'categories' => $categories], 200);
     }
 
     // Update Category
@@ -48,7 +52,9 @@ class ProductController extends Controller
             'name' => $validated['name'],
         ]);
 
-        return response()->json(['message' => 'Category updated successfully', 'category' => $category], 200);
+        return response()->json([
+             'status' => 'success' ,
+             'message' => 'Category updated successfully', 'category' => $category], 200);
     }
 
     // Delete Category
@@ -57,7 +63,9 @@ class ProductController extends Controller
         $category = Category::findOrFail($id);
         $category->delete();
 
-        return response()->json(['message' => 'Category deleted successfully'], 200);
+        return response()->json([
+             'status' => 'success' ,
+             'message' => 'Category deleted successfully'], 200);
     }
     // Add Product
     public function productAdd(Request $request)
@@ -116,6 +124,7 @@ class ProductController extends Controller
         }
 
         return response()->json([
+            'status' => 'success',
             'message' => $message,
             'product' => $product,
         ], 200);
@@ -160,7 +169,9 @@ class ProductController extends Controller
             return $product;
         });
 
-        return response()->json(['products' => $products], 200);
+        return response()->json([
+             'status' => 'success' ,
+             'products' => $products], 200);
     }
 
     // Update Product
@@ -226,6 +237,7 @@ class ProductController extends Controller
         $product->save();
 
         return response()->json([
+            'status' => 'success',
             'message' => 'Product updated successfully',
             'product' => $product,
         ], 200);
@@ -237,7 +249,9 @@ class ProductController extends Controller
         $product = Product::findOrFail($id);
         $product->delete();
 
-        return response()->json(['message' => 'Product deleted successfully'], 200);
+        return response()->json([
+             'status' => 'success' ,
+             'message' => 'Product deleted successfully'], 200);
     }
 
     //blog
@@ -267,6 +281,7 @@ class ProductController extends Controller
         ]);
 
         return response()->json([
+            'status' => 'success',
             'message' => 'Blog added successfully',
             'blog' => $blog,
         ], 200);
@@ -317,6 +332,7 @@ class ProductController extends Controller
         $blog->image = json_decode($blog->$image);
 
         return response()->json([
+            'status' => 'success',
             'message' => 'Blog updated successfully',
             'blog' => $blog,
         ], 200);
@@ -332,7 +348,9 @@ class ProductController extends Controller
         $blog = Blog::findOrFail($id);
         $blog->delete();
 
-        return response()->json(['message' => 'Blog deleted successfully'], 200);
+        return response()->json([
+             'status' => 'success' ,
+             'message' => 'Blog deleted successfully'], 200);
     }
     //about us
     public function aboutAdd(Request $request)
@@ -357,7 +375,9 @@ class ProductController extends Controller
 
         ]);
 
-        return response()->json(['message' => 'About added successfully', 'about' => $about], 200);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'About added successfully', 'about' => $about], 200);
     }
     public function aboutUpdate(Request $request, $id)
     {
@@ -392,6 +412,7 @@ class ProductController extends Controller
         $about->save();
 
         return response()->json([
+            'status' => 'success' ,
             'message' => 'About updated successfully',
             'about' => [
                 'id' => $about->id,
@@ -408,7 +429,9 @@ class ProductController extends Controller
         $about = About::findOrFail($id);
         $about->delete();
 
-        return response()->json(['message' => 'About deleted successfully'], 200);
+        return response()->json([
+             'status' => 'success' ,
+             'message' => 'About deleted successfully'], 200);
     }
     //faq add, update delete
     public function faqAdd(Request $request)
@@ -424,7 +447,9 @@ class ProductController extends Controller
 
         ]);
 
-        return response()->json(['message' => 'FAQ added successfully', 'faq' => $faq], 200);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'FAQ added successfully', 'faq' => $faq], 200);
     }
     public function faqUpdate(Request $request, $id)
     {
@@ -446,6 +471,7 @@ class ProductController extends Controller
         $faq->save();
 
         return response()->json([
+            'status' => 'success' ,
             'message' => 'FAQ updated successfully',
             'faq' => [
                 'id' => $faq->id,
@@ -460,6 +486,8 @@ class ProductController extends Controller
         $faq = FAQ::findOrFail($id);
         $faq->delete();
 
-        return response()->json(['message' => 'FAQ deleted successfully'], 200);
+        return response()->json([
+             'status' => 'success' ,
+             'message' => 'FAQ deleted successfully'], 200);
     }
 }

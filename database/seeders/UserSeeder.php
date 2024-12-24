@@ -19,6 +19,7 @@ class UserSeeder extends Seeder
             'email' => 'user@gmail.com',
             'role' => 'USER',
             'password' => Hash::make('12345678'),
+            'status' => 'active',
             'email_verified_at' => now(),
         ]);
 
@@ -28,6 +29,7 @@ class UserSeeder extends Seeder
             'email' => 'admin@gmail.com',
             'role' => 'ADMIN',
             'password' => Hash::make('12345678'),
+            'status' => 'active',
             'email_verified_at' => now(), // Sets the current timestamp
         ]);
     }

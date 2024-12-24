@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Mail\sendOTP;
 use App\Models\Order;
 use App\Models\User;
-use Carbon\Traits\Week;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,10 +23,10 @@ class AuthController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|unique:users,email',
-            'address' => 'required|string|max:255',
-            'contact' => 'required|string|max:15',
-            'password' => 'required|string|min:6|confirmed',
-            'role' => 'required|in:ADMIN,OWNER,USER',
+            'address' => 'nullable|string|max:255',
+            'contact' => 'nullable|string|max:15',
+            'password' => 'required|string|min:6',
+            // 'role' => 'required|in:ADMIN,OWNER,USER',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
         ]);
 
@@ -38,17 +37,20 @@ class AuthController extends Controller
             $imagePath = asset('storage/' . $path);
         }
 
-        $otp = rand(100000, 999999);
+        $otp = rand(1000, 9999);
+        $otp_expires_at = now()->addMinutes(10);
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'address' => $validated['address'],
-            'contact' => $validated['contact'],
+            'address' => $validated['address'] ?? null,
+            'contact' => $validated['contact'] ?? null,
             'password' => bcrypt($validated['password']),
-            'role' => $validated['role'],
+            'role' => 'USER', // Set default role as 'user'
             'image' => $imagePath,
             'otp' => $otp,
+            'otp_expires_at' => $otp_expires_at,
+            'status' => 'inactive',
         ]);
 
         try {
@@ -62,7 +64,9 @@ class AuthController extends Controller
             default => 'Welcome User! Please verify your email.',
         };
 
-        return response()->json(['message' => $message], 200);
+        return response()->json([
+            'status' => 'success',
+            'message' => $message], 200);
     }
     // verify email
     public function verify(Request $request)
@@ -80,15 +84,17 @@ class AuthController extends Controller
         if ($user) {
             $user->otp = null;
             $user->email_verified_at = now();
+            $user->status = 'active';
             $user->save();
 
             $token = JWTAuth::fromUser($user);
 
             return response()->json([
-                'message' => 'Email is verified',
-                'access_token' => $token,
-                'token_type' => 'bearer',
-                'email_verified_at' => $user->email_verified_at,
+                'status' => 'success',
+                'message' => 'OTP verified successfully.',
+                // 'access_token' => $token,
+                // 'token_type' => 'bearer',
+                // 'email_verified_at' => $user->email_verified_at,
             ], 200);
         }
 
@@ -102,22 +108,25 @@ class AuthController extends Controller
         if ($token = Auth::guard('api')->attempt($credentials)) {
             $user = Auth::guard('api')->user();
 
-            if ($user->role !== 'OWNER' && !$user->hasVerifiedEmail()) {
-                return response()->json(['error' => 'Email not verified. Please check your email.'], 403);
-            }
+            $user->image = $user->image ?? asset('img/default-user.webp');
 
             return response()->json([
+                'status' => 'success',
                 'access_token' => $token,
                 'token_type' => 'bearer',
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role,
-                'email_verified_at' => $user->email_verified_at,
+                'user_information' => [
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'email_verified_at' => $user->email_verified_at,
+                    'image' => $user->image,
+                ],
             ]);
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+
     public function guard()
     {
         return Auth::guard('api');
@@ -168,6 +177,7 @@ class AuthController extends Controller
         $user->save();
 
         return response()->json([
+            'status' => 'success',
             'message' => 'Profile updated successfully.',
             'user' => [
                 'name' => $user->name,
@@ -198,7 +208,9 @@ class AuthController extends Controller
         $user->password = Hash::make($request->new_password);
         $user->save();
 
-        return response()->json(['message' => 'Password changed successfully']);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Password changed successfully']);
     }
     // forgate password
     public function forgotPassword(Request $request)
@@ -210,11 +222,11 @@ class AuthController extends Controller
         if (!$user) {
             return response()->json(['error' => 'Email not registered.'], 404);
         }
-        $otp = rand(100000, 999999);
+        $otp = rand(1000, 9999);
 
-        DB::table('password_reset_tokens')->updateOrInsert(
+        DB::table('users')->updateOrInsert(
             ['email' => $request->email],
-            ['token' => $otp, 'created_at' => now()]
+            ['otp' => $otp, 'created_at' => now()]
         );
 
         try {
@@ -224,39 +236,41 @@ class AuthController extends Controller
             return response()->json(['error' => 'Failed to send OTP.'], 500);
         }
 
-        return response()->json(['message' => 'OTP sent to your email.'], 200);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'OTP sent to your email.'], 200);
     }
 
     // this otp verify for forgot pass
-    public function verifyOtp(Request $request)
-    {
-        $request->validate([
-            'email' => 'required|email',
-            'otp' => 'required|numeric',
-        ]);
+    // public function verifyOtp(Request $request)
+    // {
+    //     $request->validate([
+    //         'email' => 'required|email',
+    //         'otp' => 'required|numeric',
+    //     ]);
 
-        $tokenData = DB::table('password_reset_tokens')
-            ->where('email', $request->email)
-            ->where('token', $request->otp)
-            ->where('created_at', '>=', now()->subMinutes(15))
-            ->first();
+    //     $tokenData = DB::table('users')
+    //         ->where('email', $request->email)
+    //         ->where('token', $request->otp)
+    //         ->where('created_at', '>=', now()->subMinutes(15))
+    //         ->first();
 
-        if (!$tokenData) {
-            return response()->json(['error' => 'Invalid or expired OTP.'], 400);
-        }
+    //     if (!$tokenData) {
+    //         return response()->json(['error' => 'Invalid or expired OTP.'], 400);
+    //     }
 
-        $user = User::where('email', $request->email)->first();
-        if (!$user) {
-            return response()->json(['error' => 'User not found.'], 404);
-        }
+    //     $user = User::where('email', $request->email)->first();
+    //     if (!$user) {
+    //         return response()->json(['error' => 'User not found.'], 404);
+    //     }
 
-        $resetToken = JWTAuth::fromUser($user);
+    //     $resetToken = JWTAuth::fromUser($user);
 
-        return response()->json([
-            'message' => 'OTP verified successfully.',
-            'reset_token' => $resetToken,
-        ], 200);
-    }
+    //     return response()->json([
+    //         'message' => 'OTP verified successfully.',
+    //         'reset_token' => $resetToken,
+    //     ], 200);
+    // }
     // reset password
     public function resetPassword(Request $request)
     {
@@ -273,7 +287,9 @@ class AuthController extends Controller
         $user->password = bcrypt($request->password);
         $user->save();
 
-        return response()->json(['message' => 'Password reset successful.'], 200);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Password reset successful.'], 200);
     }
     public function resendOtp(Request $request)
     {
@@ -287,9 +303,9 @@ class AuthController extends Controller
 
         $otp = rand(100000, 999999);
 
-        DB::table('password_reset_tokens')->updateOrInsert(
+        DB::table('users')->updateOrInsert(
             ['email' => $request->email],
-            ['token' => $otp, 'created_at' => now()]
+            ['otp' => $otp, 'created_at' => now()]
         );
 
         try {
@@ -299,12 +315,16 @@ class AuthController extends Controller
             return response()->json(['error' => 'Failed to resend OTP.'], 500);
         }
 
-        return response()->json(['message' => 'OTP resent to your email.'], 200);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'OTP resent to your email.'], 200);
     }
     public function logout()
     {
         auth('api')->logout();
-        return response()->json(['message' => 'Successfully logged out']);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Successfully logged out']);
     }
     //admin show user data
     public function viewUserInfo(Request $request)
@@ -320,7 +340,7 @@ class AuthController extends Controller
         $admin = auth()->user();
 
         //admin info dont show
-        $usersQuery = User::where('role', 'USER')->where('id', '!=', $admin->id);//admin info dont show
+        $usersQuery = User::where('role', 'USER')->where('id', '!=', $admin->id); //admin info dont show
 
         if ($search) {
             $usersQuery->where(function ($query) use ($search) {
@@ -357,25 +377,100 @@ class AuthController extends Controller
             return response()->json(['users_message' => "There is no one by this search criteria."], 200);
         }
 
-        return response()->json(['users' => $users], 200);
+        return response()->json([
+            'status' => 'success',
+            'users' => $users], 200);
     }
 
     //dashboard for admin
-
-    public function getDashboardStatistics()
+    public function getDashboardStatistics(Request $request)
     {
+        $period = $request->input('period', 'weekly');
 
-        $totalUsers = User::count();
+        // Set the date range based on the selected period
+        switch ($period) {
+            case 'weekly':
+                $startOfPeriod = now()->startOfWeek();
+                $endOfPeriod = now()->endOfWeek();
+                break;
+            case 'monthly':
+                $startOfPeriod = now()->startOfMonth();
+                $endOfPeriod = now()->endOfMonth();
+                break;
+            case 'yearly':
+                $startOfPeriod = now()->startOfYear();
+                $endOfPeriod = now()->endOfYear();
+                break;
+            default:
+                $startOfPeriod = now()->startOfWeek();
+                $endOfPeriod = now()->endOfWeek();
+                break;
+        }
 
-        $totalOrders = Order::count();
+        // Calculate previous period start and end dates
+        if ($period == 'weekly') {
+            $previousStartOfPeriod = now()->subWeek()->startOfWeek();
+            $previousEndOfPeriod = now()->subWeek()->endOfWeek();
+        } elseif ($period == 'monthly') {
+            $previousStartOfPeriod = now()->subMonth()->startOfMonth();
+            $previousEndOfPeriod = now()->subMonth()->endOfMonth();
+        } elseif ($period == 'yearly') {
+            $previousStartOfPeriod = now()->subYear()->startOfYear();
+            $previousEndOfPeriod = now()->subYear()->endOfYear();
+        }
 
-        // $totalEarning = Order::selectRaw(Week('created_at'));
+        // Get statistics for the current period
+        $totalUsers = User::whereBetween('created_at', [$startOfPeriod, $endOfPeriod])->count();
+        $totalOrders = Order::whereBetween('created_at', [$startOfPeriod, $endOfPeriod])->count();
+        $totalEarning = Order::whereBetween('created_at', [$startOfPeriod, $endOfPeriod])->sum('amount');
 
+        // Get statistics for the previous period
+        $previousUsers = User::whereBetween('created_at', [$previousStartOfPeriod, $previousEndOfPeriod])->count();
+        $previousOrders = Order::whereBetween('created_at', [$previousStartOfPeriod, $previousEndOfPeriod])->count();
+        $previousEarning = Order::whereBetween('created_at', [$previousStartOfPeriod, $previousEndOfPeriod])->sum('amount');
+
+        // Calculate the growth percentage for each statistic
+        $userGrowthPercentage = $previousUsers ? (($totalUsers - $previousUsers) / $previousUsers) * 100 : 0;
+        $orderGrowthPercentage = $previousOrders ? (($totalOrders - $previousOrders) / $previousOrders) * 100 : 0;
+        $earningGrowthPercentage = $previousEarning ? (($totalEarning - $previousEarning) / $previousEarning) * 100 : 0;
+
+        // Return the statistics
         return response()->json([
-            'total_users' => $totalUsers,
-            'total_orders' => $totalOrders,
-            // 'total_earning' => $totalEarning,
+            'status' => 'success',
+            'data' => [
+                'total_users' => $totalUsers,
+                'total_orders' => $totalOrders,
+                'total_earning' => $totalEarning ?? 0,
+                'user_growth_percentage' => round($userGrowthPercentage, 2),
+                'order_growth_percentage' => round($orderGrowthPercentage, 2),
+                'earning_growth_percentage' => round($earningGrowthPercentage, 2),
+            ],
+
         ], 200);
+    }
+    //website visitor
+    public function websiteVisitor(Request $request)
+    {
+        $year = $request->query('year', date('Y'));
+
+        $monthlyStatistics = user::selectRaw('MONTH(created_at) as month, COUNT(*) as total_user')
+            ->whereYear('created_at', $year) // Filter year
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->keyBy('month');
+
+        $statistics = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $statistics[] = [
+                'month_name' => date('F', mktime(0, 0, 0, $i, 1)),
+                'total_users' => $monthlyStatistics->get($i)->total_user ?? 0,
+            ];
+        }
+
+        return response()->json(['status'=> 'success',
+            $statistics],  200
+            );
     }
 
 }

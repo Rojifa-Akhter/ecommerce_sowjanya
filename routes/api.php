@@ -31,6 +31,7 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
    Route::post('/product-add', [ProductController::class, 'productAdd']);
    Route::post('/product-update/{id}', [ProductController::class, 'productUpdate']);
    Route::delete('/product-delete/{id}', [ProductController::class, 'productDelete']);
+   Route::get('/product-list', [ProductController::class, 'productList']);
 
    // blog us Routes
    Route::post('/blog-add', [ProductController::class, 'blogAdd']);
@@ -51,24 +52,30 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
     Route::get('/users', [AuthController::class, 'viewUserInfo']);
 
     //dashboard
-    Route::get('/total-user', [AuthController::class, 'getDashboardStatistics']);
+    Route::get('/statistics', [AuthController::class, 'getDashboardStatistics']);
     Route::get('/website-visitor', [AuthController::class, 'websiteVisitor']);
     Route::get('/traffic-sourch', [AuthController::class, 'trafficSourch']);
 
 
 });
 Route::middleware(['auth:api', 'USER'])->group(function () {
+    Route::get('/product-view', [UserController::class, 'productView']);
+
+    Route::get('/myprofile', [UserController::class, 'myprofile']);
+    Route::get('/own-profile', [UserController::class, 'ownProfile']);
     Route::get('/notifications', [UserController::class, 'getNotifications']);
     Route::get('/notifications/{id}', [UserController::class, 'markNotificationAsRead']);
     Route::get('/showProduct/{id}', [OrderController::class, 'showProduct']);
-    Route::get('/profile', [UserController::class, 'profile']);
+
     Route::post('/create-order', [OrderController::class, 'createOrder']);
+
+    // Review
+    Route::post('/reviews', [UserController::class, 'createReview']);
 
  });
 
 Route::middleware(['auth:api'])->group(function () {
     // Routes accessible to both ADMIN and USER
     Route::get('/category-list', [ProductController::class, 'categoryList']);
-    Route::get('/product-list', [ProductController::class, 'productList']);
     Route::get('/blog-list', [ProductController::class, 'blogList']);
 });
