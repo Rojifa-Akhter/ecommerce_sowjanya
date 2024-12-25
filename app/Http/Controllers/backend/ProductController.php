@@ -409,6 +409,31 @@ class ProductController extends Controller
             'blogs' => $blogs,
         ], 200);
     }
+    //single blog
+    public function blogDetails($id)
+    {
+        $blog = Blog::find($id);
+    
+        if (!$blog) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Blog not found',
+            ], 404);
+        }
+        $blogDetails = [
+            'image' => $blog->image ?? asset('img/1.webp'),
+            'title' => $blog->title,
+            'date' => $blog->date,
+            'description' => $blog->description,
+        ];
+    
+        return response()->json([
+            'status' => 'success',
+            'data' => $blogDetails,
+        ]);
+    }
+    
+
 
     public function blogDelete($id)
     {
@@ -430,7 +455,7 @@ class ProductController extends Controller
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
             'images' => 'nullable|array|max:5', // Max 5 images
         ]);
-
+    
         if ($validator->fails()) {
             return response()->json(['status' => 'error', 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
         }
@@ -438,24 +463,24 @@ class ProductController extends Controller
         $imagePaths = [];
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
-                $path = $image->store('about_images', 'public');
-                $imagePaths[] = asset('storage/' . $path);
+                $path = $image->store('about_images', 'public'); 
+                $imagePaths[] = asset('storage/' . $path); 
             }
         }
-
+    
         $about = About::create([
             'title' => $request->input('title'),
             'description' => $request->input('description'),
-            'image' => $imagePaths,
-
+            'image' => json_encode($imagePaths), 
         ]);
-
+    
         return response()->json([
             'status' => 'success',
             'message' => 'About added successfully',
             'about' => $about,
         ], 200);
     }
+    
 
     public function aboutUpdate(Request $request, $id)
     {
@@ -560,7 +585,7 @@ class ProductController extends Controller
             'faq' => $faq,
         ], 200);
     }
-    
+
     public function faqDelete($id)
     {
         $faq = FAQ::findOrFail($id);

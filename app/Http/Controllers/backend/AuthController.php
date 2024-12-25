@@ -178,7 +178,7 @@ class AuthController extends Controller
             $path = $request->file('image')->store('profile_images', 'public');
             $user->image = asset('storage/' . $path);
         }
-        
+
         $user->save();
 
         return response()->json([
@@ -458,27 +458,135 @@ class AuthController extends Controller
     }
     //website visitor
     public function analytics(Request $request)
-    {
-        $year = $request->query('year', date('Y'));
+{
+    // Get filter type, default to weekly
+    $filter = $request->query('filter', 'weekly');
+    $year = $request->query('year', date('Y')); // Default to the current year if not provided
 
-        $monthlyStatistics = user::selectRaw('MONTH(created_at) as month, COUNT(*) as total_user')
-            ->whereYear('created_at', $year) // Filter year
+    // Initialize variables to hold statistics
+    $statistics = [];
+
+    // Fetch all distinct years available in the database
+    $years = User::selectRaw('YEAR(created_at) as year')
+        ->distinct()
+        ->orderBy('year', 'desc')
+        ->get()
+        ->pluck('year');
+
+    if ($filter == 'weekly') {
+        // Weekly data processing for a specific year
+        $weeklyStatistics = User::selectRaw('WEEK(created_at) as week, COUNT(*) as total_user')
+            ->whereYear('created_at', $year)
+            ->groupBy('week')
+            ->orderBy('week')
+            ->get()
+            ->keyBy('week');
+
+        $weeklyOrders = Order::selectRaw('WEEK(created_at) as week, COUNT(*) as total_orders')
+            ->whereYear('created_at', $year)
+            ->groupBy('week')
+            ->orderBy('week')
+            ->get()
+            ->keyBy('week');
+
+        for ($i = 1; $i <= 52; $i++) {
+            $statistics[] = [
+                'week' => $i,
+                'total_users' => $weeklyStatistics->get($i)->total_user ?? 0,
+                'total_orders' => $weeklyOrders->get($i)->total_orders ?? 0,
+            ];
+        }
+    } elseif ($filter == 'monthly') {
+        // Monthly data processing for a specific year
+        $monthlyStatistics = User::selectRaw('MONTH(created_at) as month, COUNT(*) as total_user')
+            ->whereYear('created_at', $year)
             ->groupBy('month')
             ->orderBy('month')
             ->get()
             ->keyBy('month');
 
-        $statistics = [];
+        $monthlyOrders = Order::selectRaw('MONTH(created_at) as month, COUNT(*) as total_orders')
+            ->whereYear('created_at', $year)
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->keyBy('month');
+
         for ($i = 1; $i <= 12; $i++) {
             $statistics[] = [
                 'month_name' => date('F', mktime(0, 0, 0, $i, 1)),
                 'total_users' => $monthlyStatistics->get($i)->total_user ?? 0,
+                'total_orders' => $monthlyOrders->get($i)->total_orders ?? 0,
             ];
         }
+    } elseif ($filter == 'yearly') {
+        // Yearly data processing for all available years
+        foreach ($years as $year) {
+            $yearlyStatistics = User::selectRaw('YEAR(created_at) as year, COUNT(*) as total_user')
+                ->whereYear('created_at', $year)
+                ->groupBy('year')
+                ->orderBy('year')
+                ->get()
+                ->keyBy('year');
 
-        return response()->json(['status' => 'success',
-            $statistics], 200
-        );
+            $yearlyOrders = Order::selectRaw('YEAR(created_at) as year, COUNT(*) as total_orders')
+                ->whereYear('created_at', $year)
+                ->groupBy('year')
+                ->orderBy('year')
+                ->get()
+                ->keyBy('year');
+
+            $statistics[] = [
+                'year' => $year,
+                'total_users' => $yearlyStatistics->get($year)->total_user ?? 0,
+                'total_orders' => $yearlyOrders->get($year)->total_orders ?? 0,
+            ];
+        }
+    }
+
+    // Return the response
+    return response()->json([
+        'status' => 'success',
+        'filter' => $filter,
+        'data' => $statistics,
+    ], 200);
+}
+
+
+    public function earningChart(Request $request)
+    {
+        $year = $request->query('year', date('Y'));
+
+        $data = Order::select(
+            DB::raw("SUM(amount) as total_earnings"),
+            DB::raw("MONTHNAME(created_at) as month_name"),
+            DB::raw("MONTH(created_at) as month")
+        )
+            ->whereYear('created_at', $year) // Filter by year
+            ->groupBy('month_name', 'month')
+            ->orderBy('month')
+            ->get();
+
+        $sortedData = $data->sortByDesc('total_earnings');
+
+        $topMonths = $sortedData->take(4)->map(function ($month) {
+            return [
+                'month_name' => $month->month_name,
+                'total_earnings' => $month->total_earnings,
+            ];
+        });
+
+        $mostEarningMonth = $sortedData->first();
+
+        return response()->json([
+            'status' => 'success',
+            'year' => $year,
+            'top_months' => $topMonths,
+            'most_earning_month' => $mostEarningMonth ? [
+                'month_name' => $mostEarningMonth->month_name,
+                'total_earnings' => $mostEarningMonth->total_earnings,
+            ] : null,
+        ]);
     }
 
 }

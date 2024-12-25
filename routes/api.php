@@ -55,19 +55,27 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
     //dashboard
     Route::get('/statistics', [AuthController::class, 'getDashboardStatistics']);
     Route::get('/analytics', [AuthController::class, 'analytics']);
-    Route::get('/traffic-sourch', [AuthController::class, 'trafficSourch']);
+    Route::get('/most-earning', [AuthController::class, 'earningChart']);
+
+    //get notification after order
+    Route::get('/notify',[OrderController::class, 'getAdminNotifications']);
+    Route::get('/notify/{id}', [OrderController::class, 'markNotification']);
 
 
 });
 Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/product-view', [UserController::class, 'productView']);
     Route::get('/blog-list', [ProductController::class, 'blogList']);
+    
+    Route::get('/blog-details/{id}', [ProductController::class, 'blogDetails']);
+    Route::get('/aboutus', [UserController::class, 'aboutUs']);
 
-    Route::get('/myprofile', [UserController::class, 'myprofile']);
+    Route::get('/my-order-list', [UserController::class, 'myOrder']);
     Route::get('/own-profile', [UserController::class, 'ownProfile']);
     Route::get('/notifications', [UserController::class, 'getNotifications']);
     Route::get('/notifications/{id}', [UserController::class, 'markNotificationAsRead']);
     Route::get('/showProduct/{id}', [OrderController::class, 'showProduct']);
+    Route::get('/review-rating', [UserController::class, 'reviewList']);
 
     Route::post('/create-order', [OrderController::class, 'createOrder']);
 

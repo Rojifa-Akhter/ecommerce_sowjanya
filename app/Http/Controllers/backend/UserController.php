@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Backend;
 
 use App\Http\Controllers\Controller;
+use App\Models\About;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Review;
@@ -70,6 +71,27 @@ class UserController extends Controller
             'review' => $review,
         ], 201);
     }
+    public function reviewList(Request $request)
+    {
+        $perPage = $request->query('per_page', 10);
+
+        $reviews = Review::with(['user:id,name,image', 'product:id,title']) 
+            ->paginate($perPage);
+
+        $reviews->getCollection()->transform(function ($review) {
+            return [
+                'user_name' => $review->user->name,
+                'user_image' => $review->user->image ? asset('storage/' . $review->user->image) : asset('default-user-image.png'),
+                'rating' => $review->rating,
+                'comment' => $review->comment,
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'reviews' => $reviews,
+        ], 200);
+    }
 
     //product view
     public function productView(Request $request)
@@ -113,9 +135,9 @@ class UserController extends Controller
             'products' => $products], 200);
     }
 
-    public function myprofile(Request $request)
+    public function myOrder(Request $request)
     {
-        
+
         $orders = Order::with('product.reviews')
             ->where('user_id', Auth::user()->id)
             ->get();
@@ -125,6 +147,7 @@ class UserController extends Controller
 
             return [
                 'image' => $order->product->image ?? asset('img/default-product.webp'),
+                'product_id' => $order->product->id,
                 'title' => $order->product->title,
                 'price' => $order->product->price,
                 'status' => $order->status,
@@ -159,6 +182,29 @@ class UserController extends Controller
             ],
         ]);
     }
-    
+    public function aboutUs(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'User not authenticated.'], 401);
+        }
+
+        $defaultImage = asset('img/1.webp');
+
+        $perPage = $request->query('per_page', 10);
+
+        $about = About::paginate($perPage);
+
+        $about->getCollection()->transform(function ($about) use ($defaultImage) {
+            $about->image = is_array($about->image) ? $about->image : (json_decode($about->image, true) ?: [$defaultImage]);
+            return $about;
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'about' => $about,
+        ], 200);
+    }
 
 }
