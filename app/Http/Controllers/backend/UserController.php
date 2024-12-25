@@ -9,6 +9,7 @@ use App\Models\Review;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 
 class UserController extends Controller
 {
@@ -24,7 +25,9 @@ class UserController extends Controller
             ];
         });
 
-        return response()->json(['notifications' => $notifications], 200);
+        return response()->json([
+            'status' => 'success',
+            'notifications' => $notifications], 200);
     }
     public function markNotificationAsRead($notificationId)
     {
@@ -40,45 +43,50 @@ class UserController extends Controller
             $notification->markAsRead();
         }
 
-        return response()->json(['message' => 'Notification marked as read.'], 200);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Notification marked as read.'], 200);
     }
     public function createReview(Request $request)
     {
-        $validated = $request->validate([
+
+        $validated = Validator::make($request->all(), [
             'product_id' => 'required|exists:products,id',
             'comment' => 'nullable|string|max:500',
             'rating' => 'nullable|integer|min:1|max:5',
         ]);
 
+        if ($validated->fails()) {return response()->json(['status' => 'error', 'message' => 'Validation failed.', 'errors' => $validated->errors()], 422);}
+
         $review = Review::create([
             'user_id' => Auth::id(),
-            'product_id' => $validated['product_id'],
-            'comment' => $validated['comment'] ?? null,
-            'rating' => $validated['rating'] ?? null,
+            'product_id' => $validated->validated()['product_id'],
+            'comment' => $validated->validated()['comment'] ?? null,
+            'rating' => $validated->validated()['rating'] ?? null,
         ]);
-
-        return response()->json(['message' => 'Review added successfully', 'review' => $review], 201);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Review added successfully.',
+            'review' => $review,
+        ], 201);
     }
+
     //product view
     public function productView(Request $request)
     {
         $perPage = $request->query('per_page', 10);
 
-        // Ensure that per_page is a positive number
         if ($perPage <= 0) {
             return response()->json(['message' => "'per_page' must be a positive number."], 400);
         }
 
-        // Fetch products with review count and rating sum
-        $products = Product::withCount('reviews') // Get the count of reviews
-            ->withSum('reviews', 'rating') // Get the sum of ratings for the product
+        $products = Product::withCount('reviews')
+            ->withSum('reviews', 'rating')
             ->paginate($perPage);
 
-        $defaultImage = asset('img/default-product.webp'); // Default image path
+        $defaultImage = asset('img/default-product.webp');
 
-        // Transforming the products collection
         $products->getCollection()->transform(function ($product) use ($defaultImage) {
-            // Use default image if the product image is not available
             $product->image = $product->image ?: $defaultImage;
 
             // Calculate the average rating
@@ -89,7 +97,6 @@ class UserController extends Controller
             // Ensure the rating is capped at 5
             $product->average_rating = min($averageRating, 5);
 
-            // Return the transformed data for each product
             return [
                 'id' => $product->id,
                 'image' => $product->image,
@@ -101,32 +108,14 @@ class UserController extends Controller
             ];
         });
 
-        // Return the paginated response with product data
-        return response()->json(['products' => $products], 200);
+        return response()->json([
+            'status' => 'success',
+            'products' => $products], 200);
     }
-
-    // public function myprofile(Request $request)
-    // {
-    //     $orders = Order::with('product.reviews')->get();
-    //     return $orders;
-
-    //     $orderDetails = $orders->map(function ($order) {
-    //         $averageRating = $order->product->reviews->avg('rating');
-
-    //         return [
-    //             'product_name' => $order->product->title ?? 'N/A',
-    //             'price' => $order->product->price ?? 0,
-    //             'status' => $order->status ?? 'Unknown',
-    //             'rating' => $averageRating,
-    //         ];
-    //     });
-
-    //     return response()->json(['Your order list' => $orderDetails], 200);
-    // }
 
     public function myprofile(Request $request)
     {
-
+        
         $orders = Order::with('product.reviews')
             ->where('user_id', Auth::user()->id)
             ->get();
@@ -150,7 +139,7 @@ class UserController extends Controller
     public function ownProfile(Request $request)
     {
         $user = Auth::user();
-    
+
         if (!$user) {
             return response()->json([
                 'status' => 'error',
@@ -158,7 +147,7 @@ class UserController extends Controller
             ], 401);
         }
         $user->image = $user->image ?? asset('img/1.webp');
-    
+
         return response()->json([
             'status' => 'success',
             'data' => [

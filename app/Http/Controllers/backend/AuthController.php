@@ -109,26 +109,30 @@ class AuthController extends Controller
     {
         $credentials = $request->only('email', 'password');
 
-        if ($token = Auth::guard('api')->attempt($credentials)) {
-            $user = Auth::guard('api')->user();
-
-            $user->image = $user->image ?? asset('img/1.webp');
-
-            return response()->json([
-                'status' => 'success',
-                'access_token' => $token,
-                'token_type' => 'bearer',
-                'user_information' => [
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->role,
-                    'email_verified_at' => $user->email_verified_at,
-                    'image' => $user->image,
-                ],
-            ]);
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Email not found.'], 404);
         }
 
-        return response()->json(['error' => 'Unauthorized'], 401);
+        if (!$token = Auth::guard('api')->attempt($credentials)) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid password.'], 401);
+        }
+
+        $user = Auth::guard('api')->user();
+        $user->image = $user->image ?? asset('img/1.webp');
+
+        return response()->json([
+            'status' => 'success',
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'user_information' => [
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'email_verified_at' => $user->email_verified_at,
+                'image' => $user->image,
+            ],
+        ], 200);
     }
 
     public function guard()
@@ -141,10 +145,10 @@ class AuthController extends Controller
         $user = Auth::guard('api')->user();
 
         if (!$user) {
-            return response()->json(['error' => 'User not authenticated.'], 401);
+            return response()->json(['status' => 'error', 'message' => 'User not authenticated.'], 401);
         }
 
-        $validatedData = $request->validate([
+        $validator = Validator::make($request->all(), [
             'name' => 'nullable|string|max:255',
             'email' => 'nullable|email|unique:users,email,' . $user->id,
             'address' => 'nullable|string|max:255',
@@ -152,32 +156,29 @@ class AuthController extends Controller
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
         ]);
 
-        if ($request->has('name')) {
-            $user->name = $validatedData['name'];
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 422);
         }
-        if ($request->has('email')) {
-            $user->email = $validatedData['email'];
-        }
-        if ($request->has('address')) {
-            $user->address = $validatedData['address'];
-        }
-        if ($request->has('password')) {
+
+        $validatedData = $validator->validated();
+
+        $user->name = $validatedData['name'] ?? $user->name;
+        $user->email = $validatedData['email'] ?? $user->email;
+        $user->address = $validatedData['address'] ?? $user->address;
+
+        if (!empty($validatedData['password'])) {
             $user->password = Hash::make($validatedData['password']);
         }
 
-        if ($request->has('image')) {
-            $image = $request->file('image');
-
-            if ($image->isValid()) {
-                $path = $image->store('profile_images', 'public');
-                $imagePath = asset('storage/' . $path);
-
-                $user->image = $imagePath;
-            } else {
-                return response()->json(['error' => 'The image failed to upload.'], 400);
-            }
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('profile_images', 'public');
+            $user->image = asset('storage/' . $path);
         }
-
+        
         $user->save();
 
         return response()->json([
@@ -188,9 +189,11 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'address' => $user->address,
                 'image' => $user->image,
+                'role' => $user->role,
             ],
         ], 200);
     }
+
     //change password
     public function changePassword(Request $request)
     {
@@ -326,17 +329,27 @@ class AuthController extends Controller
     }
     public function logout()
     {
+        if (!auth('api')->check()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User is not authenticated.',
+            ], 401);
+        }
+
         auth('api')->logout();
+
         return response()->json([
             'status' => 'success',
-            'message' => 'Successfully logged out']);
+            'message' => 'Successfully logged out.',
+        ]);
     }
+
     //admin show user data
     public function viewUserInfo(Request $request)
     {
         $perPage = $request->query('per_page', 10);
 
-        if ($perPage <= 0) {
+        if (!is_numeric($perPage) || $perPage <= 0) {
             return response()->json(['message' => "'per_page' must be a positive number."], 400);
         }
 
@@ -344,8 +357,11 @@ class AuthController extends Controller
         $filter = $request->input('filter');
         $admin = auth()->user();
 
-        //admin info dont show
-        $usersQuery = User::where('role', 'USER')->where('id', '!=', $admin->id); //admin info dont show
+        if (!$admin) {
+            return response()->json(['message' => 'User not authenticated.'], 401);
+        }
+
+        $usersQuery = User::where('role', 'USER')->where('id', '!=', $admin->id);
 
         if ($search) {
             $usersQuery->where(function ($query) use ($search) {
@@ -355,36 +371,23 @@ class AuthController extends Controller
             });
         }
 
-        if ($filter === 'name') {
-            $usersQuery->orderBy('name', 'asc');
-        } elseif ($filter === 'email') {
-            $usersQuery->orderBy('email', 'asc');
-        } elseif ($filter === 'userid') {
-            $usersQuery->orderBy('id', 'asc');
+        if ($filter) {
+            $validFilters = ['name', 'email', 'userid'];
+            if (in_array($filter, $validFilters)) {
+                $usersQuery->orderBy($filter === 'userid' ? 'id' : $filter, 'asc');
+            }
         }
 
-        $users = $usersQuery->with(['orders.product:id,title'])
-            ->select('id', 'name', 'email', 'image', 'created_at')
-            ->paginate($perPage);
+        $users = $usersQuery->paginate($perPage);
 
-        $defaultAvatar = asset('img/1.webp');
-
-        $users->getCollection()->transform(function ($user) use ($defaultAvatar) {
-            $user->image = $user->image ?: $defaultAvatar;
-            $user->bought_product = $user->orders->count(); // Count total orders
-
-            unset($user->orders); // Remove raw orders data
-            return $user;
-        });
-
-        // Return response
         if ($users->isEmpty()) {
-            return response()->json(['users_message' => "There is no one by this search criteria."], 200);
+            return response()->json(['message' => 'No users found.'], 404);
         }
 
         return response()->json([
             'status' => 'success',
-            'users' => $users], 200);
+            'users' => $users,
+        ], 200);
     }
 
     //dashboard for admin

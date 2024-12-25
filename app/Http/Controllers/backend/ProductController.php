@@ -11,66 +11,115 @@ use App\Models\Product;
 use App\Models\User;
 use App\Notifications\ProductAddedNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Validator;
 
 class ProductController extends Controller
 {
     // Add Category
     public function categoryAdd(Request $request)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
         ]);
 
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
         $category = Category::create([
-            'name' => $validated['name'],
+            'name' => $request->name,
         ]);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Category added successfully', 'category' => $category], 200);
+            'message' => 'Category added successfully',
+            'category' => $category,
+        ], 200);
     }
 
     // List All Categories
     public function categoryList()
     {
         $categories = Category::all();
+
+        if ($categories->isEmpty()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No categories found.',
+            ], 404);
+        }
+
         return response()->json([
             'status' => 'success',
-            'categories' => $categories], 200);
+            'categories' => $categories,
+        ], 200);
     }
 
     // Update Category
     public function categoryUpdate(Request $request, $id)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
         ]);
 
-        $category = Category::findOrFail($id);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $category = Category::find($id);
+
+        if (!$category) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Category not found.',
+            ], 404);
+        }
+
         $category->update([
-            'name' => $validated['name'],
+            'name' => $request->name,
         ]);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Category updated successfully', 'category' => $category], 200);
+            'message' => 'Category updated successfully',
+            'category' => $category,
+        ], 200);
     }
 
     // Delete Category
     public function categoryDelete($id)
     {
-        $category = Category::findOrFail($id);
+        $category = Category::find($id);
+
+        if (!$category) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Category not found.',
+            ], 404);
+        }
+
         $category->delete();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Category deleted successfully'], 200);
+            'message' => 'Category deleted successfully',
+        ], 200);
     }
     // Add Product
     public function productAdd(Request $request)
     {
-        $validated = $request->validate([
+        // Validation
+        $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'category' => 'nullable|string|max:255',
             'brand' => 'nullable|string|max:255',
@@ -83,6 +132,10 @@ class ProductController extends Controller
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
         ]);
 
+        if ($validator->fails()) {
+            return response()->json(['status' => false, 'message' => $validator->errors()], 400);
+        }
+
         $imagePaths = [];
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
@@ -93,36 +146,40 @@ class ProductController extends Controller
 
         $colors = $request->color ? json_encode($request->color) : null;
 
-        $stockStatus = 'In Stock'; //stock status
-        if ($validated['quantity'] < 1) {
+        // Stock status
+        $stockStatus = 'In Stock';
+        if ($request->quantity < 1) {
             $stockStatus = 'Out of Stock';
-        } elseif ($validated['quantity'] <= 5) {
+        } elseif ($request->quantity <= 5) {
             $stockStatus = 'Low Stock';
         }
+
         $product = Product::updateOrCreate(
-            ['title' => $validated['title']],
+            ['title' => $request->title], // Check if product exists by title
             [
-                'category' => $validated['category'] ?? null,
-                'brand' => $validated['brand'] ?? null,
-                'image' => $imagePaths ?: [],
-                'price' => $validated['price'],
-                'quantity' => $validated['quantity'],
-                'sale_price' => $validated['sale_price'],
-                'SKU' => $validated['SKU'] ?? null,
+                'category' => $request->category ?? null,
+                'brand' => $request->brand ?? null,
+                'image' => $imagePaths ?: [], // Store images as an array
+                'price' => $request->price,
+                'quantity' => $request->quantity,
+                'sale_price' => $request->sale_price,
+                'SKU' => $request->SKU ?? null,
                 'stock' => $stockStatus,
                 'tags' => $request->tags ?? null,
                 'color' => $colors,
                 'size' => $request->size ?? null,
-                'description' => $validated['description'],
+                'description' => $request->description,
             ]
         );
+
         $product->color = json_decode($product->color);
+
         // Send notification
         $message = $product->wasRecentlyCreated ? 'Product added successfully' : 'Product updated successfully';
         if ($product->wasRecentlyCreated) {
             Notification::send(User::all(), new ProductAddedNotification($product));
         }
-
+        // Return response
         return response()->json([
             'status' => 'success',
             'message' => $message,
@@ -136,7 +193,7 @@ class ProductController extends Controller
         $perPage = $request->query('per_page', 10);
 
         if ($perPage <= 0) {
-            return response()->json(['message' => "'per_page' must be a positive number."], 400);
+            return response()->json(['status' => 'error', 'message' => "'per_page' must be a positive number."], 400);
         }
 
         $search = $request->input('search');
@@ -144,7 +201,6 @@ class ProductController extends Controller
 
         $productsQuery = Product::query();
 
-        // Search logic
         if ($search) {
             $productsQuery->where(function ($query) use ($search) {
                 $query->where('title', 'LIKE', "%{$search}%")
@@ -152,11 +208,12 @@ class ProductController extends Controller
             });
         }
 
-        // Filter logic
         if ($filter === 'title') {
             $productsQuery->orderBy('title', 'asc');
         } elseif ($filter === 'stock') {
             $productsQuery->orderBy('stock', 'desc');
+        } elseif ($filter) {
+            return response()->json(['status' => 'error', 'message' => "Invalid filter value."], 400);
         }
 
         $products = $productsQuery->select('title', 'image', 'price', 'quantity', 'no_of_sale', 'stock')
@@ -171,13 +228,20 @@ class ProductController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'products' => $products], 200);
+            'products' => $products,
+        ], 200);
     }
 
     // Update Product
     public function productUpdate(Request $request, $id)
     {
-        $validated = $request->validate([
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json(['status' => 'error', 'message' => 'Product not found'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
             'title' => 'nullable|string|max:255',
             'category' => 'nullable|string|max:255',
             'brand' => 'nullable|string|max:255',
@@ -190,48 +254,41 @@ class ProductController extends Controller
             'color' => 'nullable|array',
             'size' => 'nullable|numeric',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
-            'images' => 'max:5',
+            'images' => 'nullable|array|max:5',
         ]);
 
-        $product = Product::findOrFail($id);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
-        if ($request->has('title')) {
-            $product->title = $validated['title'];
-        }
-        if ($request->has('category')) {
-            $product->category = $validated['category'];
-        }
-        if ($request->has('brand')) {
-            $product->brand = $validated['brand'];
-        }
-        if ($request->has('description')) {
-            $product->description = $validated['description'];
-        }
-        if ($request->has('price')) {
-            $product->price = $validated['price'];
-        }
-        if ($request->has('sale_price')) {
-            $product->sale_price = $validated['sale_price'];
-        }
-        if ($request->has('color')) {
-            $product->color = $validated['color'];
-        }
-        $imagePaths = [];
+        $validatedData = $validator->validated();
+
+        $product->title = $validatedData['title'] ?? $product->title;
+        $product->category = $validatedData['category'] ?? $product->category;
+        $product->brand = $validatedData['brand'] ?? $product->brand;
+        $product->description = $validatedData['description'] ?? $product->description;
+        $product->price = $validatedData['price'] ?? $product->price;
+        $product->sale_price = $validatedData['sale_price'] ?? $product->sale_price;
+        $product->SKU = $validatedData['SKU'] ?? $product->SKU;
+        $product->stock = $validatedData['stock'] ?? $product->stock;
+        $product->tags = $validatedData['tags'] ?? $product->tags;
+        $product->color = $validatedData['color'] ?? $product->color;
+        $product->size = $validatedData['size'] ?? $product->size;
+
         if ($request->hasFile('images')) {
-            if (count($request->file('images')) > 5) {
-                return response()->json(['error' => 'You can upload a maximum of 5 images.'], 400);
-            }
-
+            $imagePaths = [];
             foreach ($request->file('images') as $image) {
                 if ($image->isValid()) {
                     $path = $image->store('product_images', 'public');
                     $imagePaths[] = asset('storage/' . $path);
-                } else {
-                    return response()->json(['error' => 'One or more images failed to upload.'], 400);
+
                 }
             }
-
-            $product->image = $imagePaths; // Store as an array (no need to json_encode)
+            $product->image = $imagePaths;
         }
 
         $product->save();
@@ -247,6 +304,7 @@ class ProductController extends Controller
     public function productDelete($id)
     {
         $product = Product::findOrFail($id);
+        if (!$product) {return response()->json(['status' => 'error', 'message' => 'Product Not Found'], 200);}
         $product->delete();
 
         return response()->json([
@@ -257,12 +315,16 @@ class ProductController extends Controller
     //blog
     public function blogAdd(Request $request)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'date' => 'required|date',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
         ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
+        }
 
         if ($request->hasFile('image') && is_array($request->file('image'))) {
             return response()->json([
@@ -279,9 +341,9 @@ class ProductController extends Controller
         }
 
         $blog = Blog::create([
-            'title' => $validated['title'],
-            'description' => $validated['description'],
-            'date' => $validated['date'],
+            'title' => $request->input('title'),
+            'description' => $request->input('description'),
+            'date' => $request->input('date'),
             'image' => $imagePath,
         ]);
 
@@ -295,35 +357,30 @@ class ProductController extends Controller
 // Update Product
     public function blogUpdate(Request $request, $id)
     {
-        $validated = $request->validate([
+        $blog = Blog::find($id);
+
+        if (!$blog) {
+            return response()->json(['status' => 'error', 'message' => 'Blog not found'], 404);
+        }
+
+        $validated = Validator::make($request->all(), [
             'title' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'date' => 'nullable|date',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
-        ]);
+        ])->validated();
 
-        $blog = Blog::findOrFail($id);
-
-        if ($request->has('title')) {
-            $blog->title = $validated['title'];
-        }
-        if ($request->has('description')) {
-            $blog->description = $validated['description'];
-        }
-        if ($request->has('date')) {
-            $blog->date = $validated['date'];
-        }
+        $blog->title = $validated['title'] ?? $blog->title;
+        $blog->description = $validated['description'] ?? $blog->description;
+        $blog->date = $validated['date'] ?? $blog->date;
 
         if ($request->hasFile('image')) {
-            // Store the new image
             $path = $request->file('image')->store('blog_images', 'public');
-            $imagePath = asset('storage/' . $path);
-
-            $blog->image = $imagePath;
+            $blog->image = asset('storage/' . $path);
         }
+
         $blog->save();
 
-        // Return the response
         return response()->json([
             'status' => 'success',
             'message' => 'Blog updated successfully',
@@ -331,23 +388,33 @@ class ProductController extends Controller
         ], 200);
     }
 
-    public function blogList()
+    public function blogList(Request $request)
     {
+        $user = Auth::user();
+
+        if (!$user) {return response()->json(['status' => 'error', 'message' => 'User not authenticated.'], 401);}
+
         $defaultImage = asset('img/1.webp');
 
-        $blogs = Blog::all()->map(function ($blog) use ($defaultImage) {
+        $perPage = $request->query('per_page', 10);
+        $blogs = Blog::paginate($perPage);
+
+        $blogs->getCollection()->transform(function ($blog) use ($defaultImage) {
             $blog->image = $blog->image ?? $defaultImage;
             return $blog;
         });
 
         return response()->json([
             'status' => 'success',
-            'blogs' => $blogs], 200);
+            'blogs' => $blogs,
+        ], 200);
     }
 
     public function blogDelete($id)
     {
         $blog = Blog::findOrFail($id);
+        if (!$blog) {return response()->json(['status' => 'error', 'message' => 'Blog Not Found'], 200);}
+
         $blog->delete();
 
         return response()->json([
@@ -357,12 +424,17 @@ class ProductController extends Controller
     //about us
     public function aboutAdd(Request $request)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
-            'images' => 'max:5',
+            'images' => 'nullable|array|max:5', // Max 5 images
         ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
         $imagePaths = [];
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
@@ -370,38 +442,46 @@ class ProductController extends Controller
                 $imagePaths[] = asset('storage/' . $path);
             }
         }
+
         $about = About::create([
-            'title' => $validated['title'],
-            'description' => $validated['description'],
+            'title' => $request->input('title'),
+            'description' => $request->input('description'),
             'image' => $imagePaths,
 
         ]);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'About added successfully', 'about' => $about], 200);
+            'message' => 'About added successfully',
+            'about' => $about,
+        ], 200);
     }
+
     public function aboutUpdate(Request $request, $id)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'title' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
         ]);
 
-        $about = About::findOrFail($id);
-
-        if ($request->has('title')) {
-            $about->title = $validated['title'];
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
         }
 
-        if ($request->has('description')) {
-            $about->description = $validated['description'];
+        $about = About::find($id);
+
+        if (!$about) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'About entry not found',
+            ], 404);
         }
 
-        // Handle images
-        $existingImages = is_string($about->image) ? json_decode($about->image, true) : ($about->image ?? []);
-        $imagePaths = $existingImages; // existing images
+        $about->title = $request->input('title', $about->title);
+        $about->description = $request->input('description', $about->description);
+
+        $imagePaths = is_array($about->image) ? $about->image : [];
 
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
@@ -410,7 +490,7 @@ class ProductController extends Controller
             }
         }
 
-        $about->image = json_encode($imagePaths);
+        $about->image = $imagePaths;
         $about->save();
 
         return response()->json([
@@ -429,6 +509,8 @@ class ProductController extends Controller
     public function aboutDelete($id)
     {
         $about = About::findOrFail($id);
+        if (!$about) {return response()->json(['status' => 'error', 'message' => 'About Not Found'], 200);}
+
         $about->delete();
 
         return response()->json([
@@ -438,15 +520,17 @@ class ProductController extends Controller
     //faq add, update delete
     public function faqAdd(Request $request)
     {
-        $validated = $request->validate([
+        $validated = Validator::make($request->all(), [
             'question' => 'required|string|max:255',
             'answer' => 'required|string',
         ]);
+        if ($validated->fails()) {
+            return response()->json(['status' => 'error', 'message' => 'Validation failed.', 'errors' => $validated->errors()], 422);
+        }
 
         $faq = FAQ::create([
-            'question' => $validated['question'],
-            'answer' => $validated['answer'],
-
+            'question' => $request->question,
+            'answer' => $request->answer,
         ]);
 
         return response()->json([
@@ -455,37 +539,32 @@ class ProductController extends Controller
     }
     public function faqUpdate(Request $request, $id)
     {
-        $validated = $request->validate([
+        $request->validate([
             'question' => 'nullable|string|max:255',
             'answer' => 'nullable|string',
         ]);
-
-        $faq = FAQ::findOrFail($id);
-
-        if ($request->has('question')) {
-            $faq->question = $validated['question'];
-        }
-
-        if ($request->has('answer')) {
-            $faq->answer = $validated['answer'];
-        }
-
+    
+        $faq = FAQ::find($id);
+    
+        if (!$faq) {
+            return response()->json(['status' => 'error','message' => 'FAQ not found', ], 404); }
+    
+        $faq->question = $request->question ?? $faq->question;
+        $faq->answer = $request->answer ?? $faq->answer;
+    
         $faq->save();
-
+    
         return response()->json([
             'status' => 'success',
-            'message' => 'FAQ updated successfully',
-            'faq' => [
-                'id' => $faq->id,
-                'question' => $faq->question,
-                'answer' => $faq->answer,
-                'updated_at' => $faq->updated_at,
-            ],
+            'message' => 'FAQ updated successfully.',
+            'faq' => $faq,
         ], 200);
     }
+    
     public function faqDelete($id)
     {
         $faq = FAQ::findOrFail($id);
+        if (!$faq) {return response()->json(['status' => 'error', 'message' => 'FAQ Not Found'], 200);}
         $faq->delete();
 
         return response()->json([
