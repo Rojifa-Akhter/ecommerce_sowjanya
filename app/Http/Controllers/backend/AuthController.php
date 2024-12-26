@@ -149,11 +149,12 @@ class AuthController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'nullable|string|max:255',
+            'name' => 'required|string|max:255',
             'email' => 'nullable|email|unique:users,email,' . $user->id,
             'address' => 'nullable|string|max:255',
+            'contact' => 'nullable|string|max:16',
             'password' => 'nullable|string|min:6|confirmed',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
         ]);
 
         if ($validator->fails()) {
@@ -169,6 +170,7 @@ class AuthController extends Controller
         $user->name = $validatedData['name'] ?? $user->name;
         $user->email = $validatedData['email'] ?? $user->email;
         $user->address = $validatedData['address'] ?? $user->address;
+        $user->contact = $validatedData['contact'] ?? $user->contact;
 
         if (!empty($validatedData['password'])) {
             $user->password = Hash::make($validatedData['password']);
@@ -188,6 +190,7 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'address' => $user->address,
+                'contact' => $user->contact,
                 'image' => $user->image,
                 'role' => $user->role,
             ],
