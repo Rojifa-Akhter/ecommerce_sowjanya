@@ -75,7 +75,7 @@ Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/notifications', [UserController::class, 'getNotifications']);
     Route::get('/notifications/{id}', [UserController::class, 'markNotificationAsRead']);
     Route::get('/showProduct/{id}', [OrderController::class, 'showProduct']);
-    Route::get('/review-rating', [UserController::class, 'reviewList']);
+    Route::get('/review-by-product', [UserController::class, 'reviewList']);
 
     Route::post('/create-order', [OrderController::class, 'createOrder']);
 

@@ -413,7 +413,7 @@ class ProductController extends Controller
     public function blogDetails($id)
     {
         $blog = Blog::find($id);
-    
+
         if (!$blog) {
             return response()->json([
                 'status' => 'error',
@@ -426,14 +426,12 @@ class ProductController extends Controller
             'date' => $blog->date,
             'description' => $blog->description,
         ];
-    
+
         return response()->json([
             'status' => 'success',
             'data' => $blogDetails,
         ]);
     }
-    
-
 
     public function blogDelete($id)
     {
@@ -453,95 +451,47 @@ class ProductController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
-            'images' => 'nullable|array|max:5', // Max 5 images
+            'images' => 'nullable|array|max:3', // Allow a maximum of 3 images
         ]);
-    
+
         if ($validator->fails()) {
-            return response()->json(['status' => 'error', 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
         }
 
-        $imagePaths = [];
+        $about = About::first(); // Fetch the first record
+
+        $newImages = [];
         if ($request->hasFile('images')) {
+            // Store new images
             foreach ($request->file('images') as $image) {
-                $path = $image->store('about_images', 'public'); 
-                $imagePaths[] = asset('storage/' . $path); 
+                $path = $image->store('about_images', 'public');
+                $newImages[] = asset('storage/' . $path);
             }
         }
-    
-        $about = About::create([
-            'title' => $request->input('title'),
-            'description' => $request->input('description'),
-            'image' => json_encode($imagePaths), 
-        ]);
-    
+
+        if ($about) {
+            // Update the existing record
+            $about->update([
+                'title' => $request->title,
+                'description' => $request->description,
+                'image' => json_encode($newImages ?: json_decode($about->image, true)), // Replace images only if new ones are uploaded
+            ]);
+        } else {
+            // Create a new record
+            $about = About::create([
+                'title' => $request->title,
+                'description' => $request->description,
+                'image' => json_encode($newImages),
+            ]);
+        }
+
         return response()->json([
             'status' => 'success',
-            'message' => 'About added successfully',
+            'message' => $about->wasRecentlyCreated ? 'About created successfully' : 'About updated successfully',
             'about' => $about,
         ], 200);
     }
-    
 
-    public function aboutUpdate(Request $request, $id)
-    {
-        $validator = Validator::make($request->all(), [
-            'title' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['status' => 'error', 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
-        }
-
-        $about = About::find($id);
-
-        if (!$about) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'About entry not found',
-            ], 404);
-        }
-
-        $about->title = $request->input('title', $about->title);
-        $about->description = $request->input('description', $about->description);
-
-        $imagePaths = is_array($about->image) ? $about->image : [];
-
-        if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('about_images', 'public');
-                $imagePaths[] = asset('storage/' . $path);
-            }
-        }
-
-        $about->image = $imagePaths;
-        $about->save();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'About updated successfully',
-            'about' => [
-                'id' => $about->id,
-                'title' => $about->title,
-                'description' => $about->description,
-                'images' => $imagePaths,
-                'updated_at' => $about->updated_at,
-            ],
-        ], 200);
-    }
-
-    public function aboutDelete($id)
-    {
-        $about = About::findOrFail($id);
-        if (!$about) {return response()->json(['status' => 'error', 'message' => 'About Not Found'], 200);}
-
-        $about->delete();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'About deleted successfully'], 200);
-    }
     //faq add, update delete
     public function faqAdd(Request $request)
     {
@@ -568,17 +518,18 @@ class ProductController extends Controller
             'question' => 'nullable|string|max:255',
             'answer' => 'nullable|string',
         ]);
-    
+
         $faq = FAQ::find($id);
-    
+
         if (!$faq) {
-            return response()->json(['status' => 'error','message' => 'FAQ not found', ], 404); }
-    
+            return response()->json(['status' => 'error', 'message' => 'FAQ not found'], 404);
+        }
+
         $faq->question = $request->question ?? $faq->question;
         $faq->answer = $request->answer ?? $faq->answer;
-    
+
         $faq->save();
-    
+
         return response()->json([
             'status' => 'success',
             'message' => 'FAQ updated successfully.',

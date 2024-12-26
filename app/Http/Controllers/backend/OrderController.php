@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\OrderPlaced;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 use Stripe\PaymentIntent;
 use Stripe\Stripe;
 
@@ -22,29 +23,30 @@ class OrderController extends Controller
 
     public function createOrder(Request $request)
     {
-        // Validate incoming request data
-        $validated = $request->validate([
-            'product_id' => 'required|exists:products,id', // Check if the product exists
+        $validated = Validator::make($request->all(), [
+            'product_id' => 'required|exists:products,id', 
             'street_address' => 'required|string|max:255',
             'city' => 'required|string|max:255',
             'state' => 'required|string|max:255',
             'zip_code' => 'required|string|max:10',
             'contact' => 'required|string|max:15',
-            'payment_method_id' => 'required|string', // Payment method ID from frontend
+            'payment_method_id' => 'required|string',
         ]);
 
-        // Get the authenticated user
+        if ($validated->fails()) {
+            return response()->json(['errors' => $validated->errors()], 400);
+        }
+
         $user = Auth::user();
 
-        // Find the product
-        $product = Product::find($validated['product_id']);
+        $product = Product::find($request->input('product_id'));
 
-        // If product doesn't exist, return an error
-        if (!$product) {
+        if (!$product) 
+        {
             return response()->json(['message' => 'Product not found'], 404);
         }
 
-        // Set the Stripe secret API key
+
         Stripe::setApiKey(env('STRIPE_SECRET'));
 
         try {
@@ -52,42 +54,42 @@ class OrderController extends Controller
             $paymentIntent = PaymentIntent::create([
                 'amount' => $product->price * 100, // Amount in cents
                 'currency' => 'usd',
-                'payment_method' => $validated['payment_method_id'],
+                'payment_method' => $request->input('payment_method_id'),
                 'confirm' => false,
                 'confirmation_method' => 'manual',
             ]);
 
-            // Create a new order in the database
             $order = Order::create([
                 'user_id' => $user->id,
                 'product_id' => $product->id,
                 'amount' => $product->price,
                 'status' => 'pending',
-                'street_address' => $validated['street_address'],
-                'city' => $validated['city'],
-                'state' => $validated['state'],
-                'zip_code' => $validated['zip_code'],
-                'contact' => $validated['contact'],
+                'street_address' => $request->input('street_address'),
+                'city' => $request->input('city'),
+                'state' => $request->input('state'),
+                'zip_code' => $request->input('zip_code'),
+                'contact' => $request->input('contact'),
                 'transaction_id' => $paymentIntent->id,
             ]);
 
-            // Get the admin(s) and send notification
-            $admins = User::where('role', 'ADMIN')->get(); // Assuming there's a role column for admins
+            // send notification
+            $admins = User::where('role', 'ADMIN')->get(); 
             foreach ($admins as $admin) {
-                $admin->notify(new OrderPlaced($order)); // Send notification to the admin
+                $admin->notify(new OrderPlaced($order)); 
             }
 
-            // Return the success response
+
             return response()->json([
                 'message' => 'Payment Intent created successfully',
                 'client_secret' => $paymentIntent->client_secret,
                 'order' => $order,
             ], 200);
         } catch (\Exception $e) {
-            // Handle any exceptions
+            
             return response()->json(['message' => $e->getMessage()], 500);
         }
     }
+
     public function getAdminNotifications()
     {
         $user = auth()->user();

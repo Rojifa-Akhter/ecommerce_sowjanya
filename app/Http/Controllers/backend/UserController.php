@@ -74,8 +74,17 @@ class UserController extends Controller
     public function reviewList(Request $request)
     {
         $perPage = $request->query('per_page', 10);
+        $productId = $request->query('product_id'); // Get the product ID
 
-        $reviews = Review::with(['user:id,name,image', 'product:id,title']) 
+        if (!$productId) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Product ID is required.',
+            ], 400);
+        }
+
+        $reviews = Review::with(['user:id,name,image', 'product:id,title'])
+            ->where('product_id', $productId) 
             ->paginate($perPage);
 
         $reviews->getCollection()->transform(function ($review) {
@@ -183,28 +192,29 @@ class UserController extends Controller
         ]);
     }
     public function aboutUs(Request $request)
-    {
-        $user = Auth::user();
+{
+    $user = Auth::user();
 
-        if (!$user) {
-            return response()->json(['status' => 'error', 'message' => 'User not authenticated.'], 401);
-        }
-
-        $defaultImage = asset('img/1.webp');
-
-        $perPage = $request->query('per_page', 10);
-
-        $about = About::paginate($perPage);
-
-        $about->getCollection()->transform(function ($about) use ($defaultImage) {
-            $about->image = is_array($about->image) ? $about->image : (json_decode($about->image, true) ?: [$defaultImage]);
-            return $about;
-        });
-
-        return response()->json([
-            'status' => 'success',
-            'about' => $about,
-        ], 200);
+    if (!$user) {
+        return response()->json(['status' => 'error', 'message' => 'User not authenticated.'], 401);
     }
+
+    $defaultImage = asset('img/1.webp');
+
+    // Fetch all About records
+    $about = About::all();
+
+    // Transform each record
+    $about->transform(function ($about) use ($defaultImage) {
+        $about->image = is_array($about->image) ? $about->image : (json_decode($about->image, true) ?: [$defaultImage]);
+        return $about;
+    });
+
+    return response()->json([
+        'status' => 'success',
+        'about' => $about,
+    ], 200);
+}
+
 
 }
