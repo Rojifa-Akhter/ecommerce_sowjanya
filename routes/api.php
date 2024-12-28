@@ -78,7 +78,7 @@ Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/review-by-product', [UserController::class, 'reviewList']);
 
     Route::post('/create-order', [OrderController::class, 'payment']);
-    Route::post('/success-payment', [OrderController::class, 'payment']);
+    Route::post('/success-payment', [OrderController::class, 'paymentSuccess']);
 
     // Review
     Route::post('/reviews', [UserController::class, 'createReview']);

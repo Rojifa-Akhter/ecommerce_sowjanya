@@ -9,7 +9,6 @@ use App\Models\User;
 use App\Notifications\OrderPlaced;
 use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -60,7 +59,7 @@ class OrderController extends Controller
         ]);
 
     }
-    
+
     public function payment(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -81,21 +80,16 @@ class OrderController extends Controller
                 'amount' => $request->amount * 100,
                 'currency' => 'usd',
                 'payment_method' => $request->payment_method,
-                'confirmation_method' => 'manual',
+                // 'confirmation_method' => 'manual',
                 'confirm' => false,
             ]);
 
-            // Return only specific fields
-            $filteredData = [
-                'client_secret' => $paymentIntent->client_secret,
-                'amount' => $paymentIntent->amount,
-                'payment_method' => $paymentIntent->payment_method,
-            ];
+
 
             return response()->json([
                 'status' => true,
                 'message' => 'Payment intent created successfully.',
-                'data' => $filteredData,
+                'data' => $paymentIntent,
             ], 200);
         } catch (Exception $e) {
             Log::error($e->getMessage());
@@ -112,13 +106,12 @@ class OrderController extends Controller
             'user_id' => 'required|exists:users,id',
             'product_id' => 'required|exists:products,id',
             'transaction_id' => 'nullable|string',
-            'amount' => 'nullable|numeric|min:0.01',
+            'amount' => 'required|numeric|min:0.01',
             'street_address' => 'nullable|string',
             'city' => 'nullable|string',
             'state' => 'nullable|string',
-            'zip_code' => 'nullable|string',
-            'contact' => 'nullable|string',
             'payment_status' => 'required|in:success,failure', // Added payment status validation
+
         ]);
 
         if ($validator->fails()) {
@@ -129,23 +122,24 @@ class OrderController extends Controller
         }
 
         try {
-            // Create the order record in the database
+
             $order = Order::create([
                 'user_id' => $request->user_id,
                 'product_id' => $request->product_id,
                 'transaction_id' => $request->transaction_id,
                 'amount' => $request->amount,
-                'status' => $request->payment_status === 'success' ? 'delivered' : 'pending', // Set status based on payment status
+                'status' => $request->payment_status === 'success' ? 'delivered' : 'pending',
                 'street_address' => $request->street_address,
                 'city' => $request->city,
-                'state' => $request->state,
-                'zip_code' => $request->zip_code,
                 'contact' => $request->contact,
             ]);
 
-            // Notify admin about the order
-            $adminUsers = User::where('id', 1)->get(); // Fetch admin users (adjust as needed)
-            Notification::send($adminUsers, new OrderPlaced($order));
+            $adminUsers = User::where('role', 'admin')->get();
+
+            // Send notifications to each admin
+            foreach ($adminUsers as $adminUser) {
+                $adminUser->notify(new OrderPlaced($order));
+            }
 
             return response()->json([
                 'status' => true,
