@@ -27,7 +27,7 @@ class ProductAddedNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        return ['database'];
     }
 // Database Notification
     public function toDatabase($notifiable)
@@ -38,20 +38,7 @@ class ProductAddedNotification extends Notification
             'price' => $this->product->price,
         ];
     }
-    /**
-     * Get the mail representation of the notification.
-     */
-    public function toMail(object $notifiable): MailMessage
-    {
-        return (new MailMessage)
-            ->subject('New Product Added')
-            ->line('A new product has been added to the store.')
-            ->line('Product Title: ' . $this->product->title)
-            ->line('Description: ' . $this->product->description)
-            ->line('Price: $' . $this->product->price)
-            // ->action('View Product', url('/products/' . $this->product->id))
-            ;
-    }
+
 
     /**
      * Get the array representation of the notification.

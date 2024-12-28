@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers\Backend;
 
-use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\About;
 use App\Models\Order;
-use App\Models\Product;
 use App\Models\Review;
-use App\Models\User;
+use App\Models\Product;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class UserController extends Controller
@@ -72,35 +73,59 @@ class UserController extends Controller
         ], 201);
     }
     public function reviewList(Request $request)
-    {
-        $perPage = $request->query('per_page', 10);
-        $productId = $request->query('product_id'); // Get the product ID
+{
+    $perPage = $request->query('per_page', 10);
+    $productId = $request->query('product_id'); 
 
-        if (!$productId) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Product ID is required.',
-            ], 400);
-        }
-
-        $reviews = Review::with(['user:id,name,image', 'product:id,title'])
-            ->where('product_id', $productId) 
-            ->paginate($perPage);
-
-        $reviews->getCollection()->transform(function ($review) {
-            return [
-                'user_name' => $review->user->name,
-                'user_image' => $review->user->image ? asset('storage/' . $review->user->image) : asset('default-user-image.png'),
-                'rating' => $review->rating,
-                'comment' => $review->comment,
-            ];
-        });
-
+    if (!$productId) {
         return response()->json([
-            'status' => 'success',
-            'reviews' => $reviews,
-        ], 200);
+            'status' => 'error',
+            'message' => 'Product ID is required.',
+        ], 400);
     }
+
+    $reviews = Review::with(['user:id,name,image', 'product:id,title'])
+        ->where('product_id', $productId)
+        ->paginate($perPage);
+
+    $product = Product::withCount('reviews')
+        ->withSum('reviews', 'rating')
+        ->find($productId);
+
+    if (!$product) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Product not found.',
+        ], 404);
+    }
+
+    $averageRating = $product->reviews_count > 0
+        ? $product->reviews_sum_rating / $product->reviews_count
+        : 0;
+
+    $product->average_rating = min($averageRating, 5);
+
+    $defaultUserImage = url(Storage::url('profile_images/default_user.png'));
+
+
+    $reviews->getCollection()->transform(function ($review) use ($defaultUserImage, $product) {
+        return [
+            'user_name' => $review->user->name,
+            'user_image' => $review->user->image ?? $defaultUserImage,
+            'rating' => $review->rating,
+            'comment' => $review->comment,
+        ];
+    });
+
+    return response()->json([
+        'status' => 'success',
+        'reviews' => $reviews,
+        'average_rating' => $product->average_rating,
+        'reviews_count' => $product->reviews_count,
+    ], 200);
+
+}
+
 
     //product view
     public function productView(Request $request)
@@ -111,9 +136,13 @@ class UserController extends Controller
             return response()->json(['message' => "'per_page' must be a positive number."], 400);
         }
 
-        $products = Product::withCount('reviews')
+        $products = Product::where('title','LIKE','%'.$request->search.'%')->orwhere('price','LIKE','%'.$request->price.'%')->orwhere('no_of_sale','LIKE','%'.$request->no_of_sale.'%')->withCount('reviews')
             ->withSum('reviews', 'rating')
             ->paginate($perPage);
+
+        // $products = Product::withCount('reviews')
+        //     ->withSum('reviews', 'rating')
+        //     ->paginate($perPage);
 
         $defaultImage = asset('img/default-product.webp');
 
@@ -136,6 +165,9 @@ class UserController extends Controller
                 'price' => $product->price,
                 'total_review' => $product->reviews_count,
                 'rating' => $product->average_rating,
+                'sale_price' => $product->sale_price,
+                'quantity' => $product->quantity,
+                'no_of_sale' => $product->no_of_sale,
             ];
         });
 

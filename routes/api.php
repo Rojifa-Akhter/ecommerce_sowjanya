@@ -1,6 +1,9 @@
 <?php
 
+use App\Http\Controllers\backend\AboutController;
 use App\Http\Controllers\backend\AuthController;
+use App\Http\Controllers\backend\BlogController;
+use App\Http\Controllers\backend\FAQController;
 use App\Http\Controllers\backend\OrderController;
 use App\Http\Controllers\Backend\ProductController;
 use App\Http\Controllers\Backend\UserController;
@@ -35,22 +38,19 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
    Route::get('/product-list', [ProductController::class, 'productList']);
 
    // blog us Routes
-   Route::post('/blog-add', [ProductController::class, 'blogAdd']);
-   Route::post('/blog-update/{id}', [ProductController::class, 'blogUpdate']);
-   Route::delete('/blog-delete/{id}', [ProductController::class, 'blogDelete']);
+   Route::post('/blog-add', [BlogController::class, 'blogAdd']);
+   Route::post('/blog-update/{id}', [BlogController::class, 'blogUpdate']);
+   Route::delete('/blog-delete/{id}', [BlogController::class, 'blogDelete']);
 
    // about us Routes
-   Route::post('/about-add', [ProductController::class, 'aboutAdd']);
-   Route::post('/about-update/{id}', [ProductController::class, 'aboutUpdate']);
-   Route::delete('/about-delete/{id}', [ProductController::class, 'aboutDelete']);
+   Route::post('/about-add', [AboutController::class, 'aboutAdd']);
 
     // FAQ us Routes
-    Route::post('/faq-add', [ProductController::class, 'faqAdd']);
-    Route::post('/faq-update/{id}', [ProductController::class, 'faqUpdate']);
-    Route::delete('/faq-delete/{id}', [ProductController::class, 'faqDelete']);
+    Route::post('/faq-add', [FAQController::class, 'faqAdd']);
 
     //users
     Route::get('/users', [AuthController::class, 'viewUserInfo']);
+    Route::delete('/users/{id}', [AuthController::class, 'deleteUser']);
 
     //dashboard
     Route::get('/statistics', [AuthController::class, 'getDashboardStatistics']);
@@ -63,11 +63,11 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
 
 
 });
+Route::get('/product-view', [UserController::class, 'productView']);
 Route::middleware(['auth:api', 'USER'])->group(function () {
-    Route::get('/product-view', [UserController::class, 'productView']);
-    Route::get('/blog-list', [ProductController::class, 'blogList']);
+    Route::get('/blog-list', [BlogController::class, 'blogList']);
     
-    Route::get('/blog-details/{id}', [ProductController::class, 'blogDetails']);
+    Route::get('/blog-details/{id}', [BlogController::class, 'blogDetails']);
     Route::get('/aboutus', [UserController::class, 'aboutUs']);
 
     Route::get('/my-order-list', [UserController::class, 'myOrder']);
@@ -77,7 +77,7 @@ Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/showProduct/{id}', [OrderController::class, 'showProduct']);
     Route::get('/review-by-product', [UserController::class, 'reviewList']);
 
-    Route::post('/create-order', [OrderController::class, 'createOrder']);
+    Route::post('/create-order', [OrderController::class, 'payment']);
 
     // Review
     Route::post('/reviews', [UserController::class, 'createReview']);

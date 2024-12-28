@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -142,6 +143,7 @@ class AuthController extends Controller
     // update profile
     public function updateProfile(Request $request)
     {
+        //  return $request;
         $user = Auth::guard('api')->user();
 
         if (!$user) {
@@ -154,7 +156,8 @@ class AuthController extends Controller
             'address' => 'nullable|string|max:255',
             'contact' => 'nullable|string|max:16',
             'password' => 'nullable|string|min:6|confirmed',
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
+            // 'image' => 'nullable|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
+            // 'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
         ]);
 
         if ($validator->fails()) {
@@ -187,6 +190,7 @@ class AuthController extends Controller
             'status' => 'success',
             'message' => 'Profile updated successfully.',
             'user' => [
+                'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
                 'address' => $user->address,
@@ -352,9 +356,9 @@ class AuthController extends Controller
     {
         $perPage = $request->query('per_page', 10);
 
-        if (!is_numeric($perPage) || $perPage <= 0) {
-            return response()->json(['message' => "'per_page' must be a positive number."], 400);
-        }
+        // if (!is_numeric($perPage) || $perPage <= 0) {
+        //     return response()->json(['message' => "'per_page' must be a positive number."], 400);
+        // }
 
         $search = $request->input('search');
         $filter = $request->input('filter');
@@ -381,11 +385,17 @@ class AuthController extends Controller
             }
         }
 
-        $users = $usersQuery->paginate($perPage);
+        $users = $usersQuery->paginate($perPage ?? 10);
 
         if ($users->isEmpty()) {
-            return response()->json(['message' => 'No users found.'], 404);
+            return response()->json(['message' => 'No users found.'], 200);
         }
+        $defaultImageUrl = url(Storage::url('profile_images/default_user.png'));
+
+        $users->getCollection()->transform(function ($user) use ($defaultImageUrl) {
+            $user->image = $user->image ?? $defaultImageUrl;
+            return $user;
+        });
 
         return response()->json([
             'status' => 'success',
@@ -461,100 +471,99 @@ class AuthController extends Controller
     }
     //website visitor
     public function analytics(Request $request)
-{
-    // Get filter type, default to weekly
-    $filter = $request->query('filter', 'weekly');
-    $year = $request->query('year', date('Y')); // Default to the current year if not provided
+    {
+        // Get filter type, default to weekly
+        $filter = $request->query('filter', 'weekly');
+        $year = $request->query('year', date('Y')); // Default to the current year if not provided
 
-    // Initialize variables to hold statistics
-    $statistics = [];
+        // Initialize variables to hold statistics
+        $statistics = [];
 
-    // Fetch all distinct years available in the database
-    $years = User::selectRaw('YEAR(created_at) as year')
-        ->distinct()
-        ->orderBy('year', 'desc')
-        ->get()
-        ->pluck('year');
-
-    if ($filter == 'weekly') {
-        // Weekly data processing for a specific year
-        $weeklyStatistics = User::selectRaw('WEEK(created_at) as week, COUNT(*) as total_user')
-            ->whereYear('created_at', $year)
-            ->groupBy('week')
-            ->orderBy('week')
+        // Fetch all distinct years available in the database
+        $years = User::selectRaw('YEAR(created_at) as year')
+            ->distinct()
+            ->orderBy('year', 'desc')
             ->get()
-            ->keyBy('week');
+            ->pluck('year');
 
-        $weeklyOrders = Order::selectRaw('WEEK(created_at) as week, COUNT(*) as total_orders')
-            ->whereYear('created_at', $year)
-            ->groupBy('week')
-            ->orderBy('week')
-            ->get()
-            ->keyBy('week');
-
-        for ($i = 1; $i <= 52; $i++) {
-            $statistics[] = [
-                'week' => $i,
-                'total_users' => $weeklyStatistics->get($i)->total_user ?? 0,
-                'total_orders' => $weeklyOrders->get($i)->total_orders ?? 0,
-            ];
-        }
-    } elseif ($filter == 'monthly') {
-        // Monthly data processing for a specific year
-        $monthlyStatistics = User::selectRaw('MONTH(created_at) as month, COUNT(*) as total_user')
-            ->whereYear('created_at', $year)
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get()
-            ->keyBy('month');
-
-        $monthlyOrders = Order::selectRaw('MONTH(created_at) as month, COUNT(*) as total_orders')
-            ->whereYear('created_at', $year)
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get()
-            ->keyBy('month');
-
-        for ($i = 1; $i <= 12; $i++) {
-            $statistics[] = [
-                'month_name' => date('F', mktime(0, 0, 0, $i, 1)),
-                'total_users' => $monthlyStatistics->get($i)->total_user ?? 0,
-                'total_orders' => $monthlyOrders->get($i)->total_orders ?? 0,
-            ];
-        }
-    } elseif ($filter == 'yearly') {
-        // Yearly data processing for all available years
-        foreach ($years as $year) {
-            $yearlyStatistics = User::selectRaw('YEAR(created_at) as year, COUNT(*) as total_user')
+        if ($filter == 'weekly') {
+            // Weekly data processing for a specific year
+            $weeklyStatistics = User::selectRaw('WEEK(created_at) as week, COUNT(*) as total_user')
                 ->whereYear('created_at', $year)
-                ->groupBy('year')
-                ->orderBy('year')
+                ->groupBy('week')
+                ->orderBy('week')
                 ->get()
-                ->keyBy('year');
+                ->keyBy('week');
 
-            $yearlyOrders = Order::selectRaw('YEAR(created_at) as year, COUNT(*) as total_orders')
+            $weeklyOrders = Order::selectRaw('WEEK(created_at) as week, COUNT(*) as total_orders')
                 ->whereYear('created_at', $year)
-                ->groupBy('year')
-                ->orderBy('year')
+                ->groupBy('week')
+                ->orderBy('week')
                 ->get()
-                ->keyBy('year');
+                ->keyBy('week');
 
-            $statistics[] = [
-                'year' => $year,
-                'total_users' => $yearlyStatistics->get($year)->total_user ?? 0,
-                'total_orders' => $yearlyOrders->get($year)->total_orders ?? 0,
-            ];
+            for ($i = 1; $i <= 52; $i++) {
+                $statistics[] = [
+                    'week' => $i,
+                    'total_users' => $weeklyStatistics->get($i)->total_user ?? 0,
+                    'total_orders' => $weeklyOrders->get($i)->total_orders ?? 0,
+                ];
+            }
+        } elseif ($filter == 'monthly') {
+            // Monthly data processing for a specific year
+            $monthlyStatistics = User::selectRaw('MONTH(created_at) as month, COUNT(*) as total_user')
+                ->whereYear('created_at', $year)
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get()
+                ->keyBy('month');
+
+            $monthlyOrders = Order::selectRaw('MONTH(created_at) as month, COUNT(*) as total_orders')
+                ->whereYear('created_at', $year)
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get()
+                ->keyBy('month');
+
+            for ($i = 1; $i <= 12; $i++) {
+                $statistics[] = [
+                    'month_name' => date('F', mktime(0, 0, 0, $i, 1)),
+                    'total_users' => $monthlyStatistics->get($i)->total_user ?? 0,
+                    'total_orders' => $monthlyOrders->get($i)->total_orders ?? 0,
+                ];
+            }
+        } elseif ($filter == 'yearly') {
+            // Yearly data processing for all available years
+            foreach ($years as $year) {
+                $yearlyStatistics = User::selectRaw('YEAR(created_at) as year, COUNT(*) as total_user')
+                    ->whereYear('created_at', $year)
+                    ->groupBy('year')
+                    ->orderBy('year')
+                    ->get()
+                    ->keyBy('year');
+
+                $yearlyOrders = Order::selectRaw('YEAR(created_at) as year, COUNT(*) as total_orders')
+                    ->whereYear('created_at', $year)
+                    ->groupBy('year')
+                    ->orderBy('year')
+                    ->get()
+                    ->keyBy('year');
+
+                $statistics[] = [
+                    'year' => $year,
+                    'total_users' => $yearlyStatistics->get($year)->total_user ?? 0,
+                    'total_orders' => $yearlyOrders->get($year)->total_orders ?? 0,
+                ];
+            }
         }
+
+        // Return the response
+        return response()->json([
+            'status' => 'success',
+            'filter' => $filter,
+            'data' => $statistics,
+        ], 200);
     }
-
-    // Return the response
-    return response()->json([
-        'status' => 'success',
-        'filter' => $filter,
-        'data' => $statistics,
-    ], 200);
-}
-
 
     public function earningChart(Request $request)
     {
@@ -590,6 +599,24 @@ class AuthController extends Controller
                 'total_earnings' => $mostEarningMonth->total_earnings,
             ] : null,
         ]);
+    }
+
+    public function deleteUser($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+            $user->delete();
+            return response()->json([
+                'status' => 'success',
+                'message' => 'User deleted successfully.',
+                'data' => $user,
+            ], 200);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'User not found',
+            ], 200);
+        }
     }
 
 }

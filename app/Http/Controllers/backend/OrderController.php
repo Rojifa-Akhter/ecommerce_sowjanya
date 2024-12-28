@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
-use App\Notifications\OrderPlaced;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -15,79 +14,139 @@ use Stripe\Stripe;
 
 class OrderController extends Controller
 {
+
     public function showProduct($productId)
     {
-        $product = Product::findOrFail($productId);
-        return response()->json(['product' => $product], 200);
-    }
+        $product = Product::withCount('reviews')
+            ->withSum('reviews', 'rating')
+            ->find($productId);
 
-    public function createOrder(Request $request)
-    {
-        $validated = Validator::make($request->all(), [
-            'product_id' => 'required|exists:products,id', 
-            'street_address' => 'required|string|max:255',
-            'city' => 'required|string|max:255',
-            'state' => 'required|string|max:255',
-            'zip_code' => 'required|string|max:10',
-            'contact' => 'required|string|max:15',
-            'payment_method_id' => 'required|string',
+        $averageRating = $product->reviews_count > 0
+        ? $product->reviews_sum_rating / $product->reviews_count
+        : 0;
+
+        // Cap the rating at 5
+        $product->average_rating = min($averageRating, 5);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'data get sccessfully',
+            'product' => [
+                'id' => $product->id,
+                'title' => $product->title,
+                'category' => $product->category,
+                'brand' => $product->brand,
+                'image' => $product->image,
+                'price' => $product->price,
+                'sale_price' => $product->sale_price,
+                'quantity' => $product->quantity,
+                'SKU' => $product->SKU,
+                'stock' => $product->stock,
+                'tags' => $product->tags,
+                'color' => $product->color,
+                'size' => $product->size,
+                'description' => $product->description,
+                'no_of_sale' => $product->no_of_sale,
+                'created_at' => $product->created_at,
+                'updated_at' => $product->updated_at,
+                'reviews_count' => $product->reviews_count,
+                'reviews_sum_rating' => $product->reviews_sum_rating,
+                'rating' => $product->average_rating,
+            ],
         ]);
 
-        if ($validated->fails()) {
-            return response()->json(['errors' => $validated->errors()], 400);
-        }
+    }
 
-        $user = Auth::user();
+    public function payment(Request $request)
+{
+    // Validate the incoming request
+    $validator = Validator::make($request->all(), [
+        'amount' => 'required|numeric|min:1',
+        'payment_method' => 'required|string',
+    ]);
 
-        $product = Product::find($request->input('product_id'));
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Validation Error',
+            'errors' => $validator->errors(),
+        ], 422);
+    }
 
-        if (!$product) 
-        {
-            return response()->json(['message' => 'Product not found'], 404);
-        }
-
-
+    try {
+        // Set the Stripe API key
         Stripe::setApiKey(env('STRIPE_SECRET'));
 
-        try {
-            // Create a PaymentIntent with Stripe
-            $paymentIntent = PaymentIntent::create([
-                'amount' => $product->price * 100, // Amount in cents
-                'currency' => 'usd',
-                'payment_method' => $request->input('payment_method_id'),
-                'confirm' => false,
-                'confirmation_method' => 'manual',
-            ]);
+        // Create a PaymentIntent with manual confirmation
+        $paymentIntent = PaymentIntent::create([
+            'amount' => $request->amount * 100, // Amount in cents
+            'currency' => 'usd',
+            'payment_method' => $request->payment_method, // Payment method ID
+            'confirmation_method' => 'manual', // Set manual confirmation
+            'confirm' => false, // Do not confirm automatically
+        ]);
 
-            $order = Order::create([
-                'user_id' => $user->id,
-                'product_id' => $product->id,
-                'amount' => $product->price,
-                'status' => 'pending',
-                'street_address' => $request->input('street_address'),
-                'city' => $request->input('city'),
-                'state' => $request->input('state'),
-                'zip_code' => $request->input('zip_code'),
-                'contact' => $request->input('contact'),
-                'transaction_id' => $paymentIntent->id,
-            ]);
+        // Return success response with PaymentIntent data
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Payment Intent created successfully.',
+            'data' => $paymentIntent,
+        ], 200);
+    } catch (\Stripe\Exception\ApiErrorException $e) {
+        // Return error response for Stripe API errors
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Payment failed.',
+            'error' => $e->getMessage(),
+        ], 500);
+    } catch (\Exception $e) {
+        // Return error response for general exceptions
+        return response()->json([
+            'status' => 'error',
+            'message' => 'An unexpected error occurred.',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
 
-            // send notification
-            $admins = User::where('role', 'ADMIN')->get(); 
-            foreach ($admins as $admin) {
-                $admin->notify(new OrderPlaced($order)); 
-            }
 
 
-            return response()->json([
-                'message' => 'Payment Intent created successfully',
-                'client_secret' => $paymentIntent->client_secret,
-                'order' => $order,
-            ], 200);
-        } catch (\Exception $e) {
-            
-            return response()->json(['message' => $e->getMessage()], 500);
+    public function success(Request $request)
+    {
+        if (!$request->has('session_id')) {
+            return response()->json(['message' => 'Invalid session'], 400);
         }
+
+        $stripe = new \Stripe\StripeClient(env('STRIPE_SECRET'));
+
+        try {
+            $session = $stripe->checkout->sessions->retrieve($request->session_id);
+            $customerDetails = $session->customer_details;
+
+            // Save the payment details
+            $payment = new Order();
+            $payment->payment_id = $session->id;
+            $payment->product_id = session()->get('product_id');
+            $payment->quantity = session()->get('quantity');
+            $payment->amount = $session->amount_total / 100; // Convert cents to dollars
+            $payment->currency = $session->currency;
+            $payment->customer_name = $customerDetails->name;
+            $payment->customer_email = $customerDetails->email;
+            $payment->payment_status = $session->payment_status;
+            $payment->payment_method = 'Stripe';
+            $payment->save();
+
+            session()->forget('product_id');
+            session()->forget('quantity');
+
+            return response()->json(['message' => 'Payment successful', 'payment' => $payment], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error retrieving payment details', 'error' => $e->getMessage()], 500);
+        }
+    }
+    public function cancel()
+    {
+        return response()->json(['message' => 'Payment was canceled.'], 400);
     }
 
     public function getAdminNotifications()
