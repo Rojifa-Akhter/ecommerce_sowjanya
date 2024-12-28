@@ -14,14 +14,7 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        User::create([
-            'name' => 'user',
-            'email' => 'user@gmail.com',
-            'role' => 'USER',
-            'password' => Hash::make('12345678'),
-            'status' => 'active',
-            'email_verified_at' => now(),
-        ]);
+
 
         // Create an admin user
         User::create([
@@ -31,6 +24,14 @@ class UserSeeder extends Seeder
             'password' => Hash::make('12345678'),
             'status' => 'active',
             'email_verified_at' => now(), // Sets the current timestamp
+        ]);
+        User::create([
+            'name' => 'user',
+            'email' => 'user@gmail.com',
+            'role' => 'USER',
+            'password' => Hash::make('12345678'),
+            'status' => 'active',
+            'email_verified_at' => now(),
         ]);
     }
 }

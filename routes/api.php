@@ -66,7 +66,7 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
 Route::get('/product-view', [UserController::class, 'productView']);
 Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/blog-list', [BlogController::class, 'blogList']);
-    
+
     Route::get('/blog-details/{id}', [BlogController::class, 'blogDetails']);
     Route::get('/aboutus', [UserController::class, 'aboutUs']);
 
@@ -78,6 +78,7 @@ Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/review-by-product', [UserController::class, 'reviewList']);
 
     Route::post('/create-order', [OrderController::class, 'payment']);
+    Route::post('/success-payment', [OrderController::class, 'payment']);
 
     // Review
     Route::post('/reviews', [UserController::class, 'createReview']);

@@ -6,8 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use App\Notifications\OrderPlaced;
+use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Stripe\PaymentIntent;
 use Stripe\Stripe;
@@ -56,94 +60,107 @@ class OrderController extends Controller
         ]);
 
     }
-
+    
     public function payment(Request $request)
-{
-    // Validate the incoming request
-    $validator = Validator::make($request->all(), [
-        'amount' => 'required|numeric|min:1',
-        'payment_method' => 'required|string',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Validation Error',
-            'errors' => $validator->errors(),
-        ], 422);
-    }
-
-    try {
-        // Set the Stripe API key
-        Stripe::setApiKey(env('STRIPE_SECRET'));
-
-        // Create a PaymentIntent with manual confirmation
-        $paymentIntent = PaymentIntent::create([
-            'amount' => $request->amount * 100, // Amount in cents
-            'currency' => 'usd',
-            'payment_method' => $request->payment_method, // Payment method ID
-            'confirmation_method' => 'manual', // Set manual confirmation
-            'confirm' => false, // Do not confirm automatically
+    {
+        $validator = Validator::make($request->all(), [
+            'amount' => 'required|numeric|min:1',
+            'payment_method' => 'required|string',
         ]);
 
-        // Return success response with PaymentIntent data
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Payment Intent created successfully.',
-            'data' => $paymentIntent,
-        ], 200);
-    } catch (\Stripe\Exception\ApiErrorException $e) {
-        // Return error response for Stripe API errors
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Payment failed.',
-            'error' => $e->getMessage(),
-        ], 500);
-    } catch (\Exception $e) {
-        // Return error response for general exceptions
-        return response()->json([
-            'status' => 'error',
-            'message' => 'An unexpected error occurred.',
-            'error' => $e->getMessage(),
-        ], 500);
-    }
-}
-
-
-
-    public function success(Request $request)
-    {
-        if (!$request->has('session_id')) {
-            return response()->json(['message' => 'Invalid session'], 400);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => false,
+                'message' => $validator->errors(),
+            ], 400);
         }
 
-        $stripe = new \Stripe\StripeClient(env('STRIPE_SECRET'));
+        Stripe::setApiKey(env('STRIPE_SECRET'));
+        try {
+            $paymentIntent = PaymentIntent::create([
+                'amount' => $request->amount * 100,
+                'currency' => 'usd',
+                'payment_method' => $request->payment_method,
+                'confirmation_method' => 'manual',
+                'confirm' => false,
+            ]);
+
+            // Return only specific fields
+            $filteredData = [
+                'client_secret' => $paymentIntent->client_secret,
+                'amount' => $paymentIntent->amount,
+                'payment_method' => $paymentIntent->payment_method,
+            ];
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Payment intent created successfully.',
+                'data' => $filteredData,
+            ], 200);
+        } catch (Exception $e) {
+            Log::error($e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'Payment failed.',
+            ], 200);
+        }
+    }
+
+    public function paymentSuccess(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'required|exists:users,id',
+            'product_id' => 'required|exists:products,id',
+            'transaction_id' => 'nullable|string',
+            'amount' => 'nullable|numeric|min:0.01',
+            'street_address' => 'nullable|string',
+            'city' => 'nullable|string',
+            'state' => 'nullable|string',
+            'zip_code' => 'nullable|string',
+            'contact' => 'nullable|string',
+            'payment_status' => 'required|in:success,failure', // Added payment status validation
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => false,
+                'message' => $validator->errors(),
+            ], 400);
+        }
 
         try {
-            $session = $stripe->checkout->sessions->retrieve($request->session_id);
-            $customerDetails = $session->customer_details;
+            // Create the order record in the database
+            $order = Order::create([
+                'user_id' => $request->user_id,
+                'product_id' => $request->product_id,
+                'transaction_id' => $request->transaction_id,
+                'amount' => $request->amount,
+                'status' => $request->payment_status === 'success' ? 'delivered' : 'pending', // Set status based on payment status
+                'street_address' => $request->street_address,
+                'city' => $request->city,
+                'state' => $request->state,
+                'zip_code' => $request->zip_code,
+                'contact' => $request->contact,
+            ]);
 
-            // Save the payment details
-            $payment = new Order();
-            $payment->payment_id = $session->id;
-            $payment->product_id = session()->get('product_id');
-            $payment->quantity = session()->get('quantity');
-            $payment->amount = $session->amount_total / 100; // Convert cents to dollars
-            $payment->currency = $session->currency;
-            $payment->customer_name = $customerDetails->name;
-            $payment->customer_email = $customerDetails->email;
-            $payment->payment_status = $session->payment_status;
-            $payment->payment_method = 'Stripe';
-            $payment->save();
+            // Notify admin about the order
+            $adminUsers = User::where('id', 1)->get(); // Fetch admin users (adjust as needed)
+            Notification::send($adminUsers, new OrderPlaced($order));
 
-            session()->forget('product_id');
-            session()->forget('quantity');
-
-            return response()->json(['message' => 'Payment successful', 'payment' => $payment], 200);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Error retrieving payment details', 'error' => $e->getMessage()], 500);
+            return response()->json([
+                'status' => true,
+                'message' => 'Payment recorded successfully and notification sent to admins.',
+                'data' => $order,
+            ], 200);
+        } catch (Exception $e) {
+            Log::error($e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to record payment.',
+            ], 500);
         }
     }
+
     public function cancel()
     {
         return response()->json(['message' => 'Payment was canceled.'], 400);
@@ -151,25 +168,36 @@ class OrderController extends Controller
 
     public function getAdminNotifications()
     {
-        $user = auth()->user();
+        $user = Auth::user();
 
-        $notifications = $user->notifications()->get()->map(function ($notification) {
-            return [
-                'id' => $notification->id,
-                'data' => $notification->data,
-                'read_at' => $notification->read_at,
-            ];
-        });
+        if ($user->role !== 'admin') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized access. Only admins can view notifications.',
+            ], 403);
+        }
+
+        // Check if the user has notifications
+        $notifications = $user->notifications()->get();
+
+        if ($notifications->isEmpty()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No notifications available.',
+            ], 404);
+        }
 
         return response()->json([
             'status' => 'success',
-            'notifications' => $notifications], 200);
+            'notifications' => $notifications,
+        ], 200);
     }
+
     public function markNotification($notificationId)
     {
-        $owner = auth()->user();
+        $user = Auth::user();
 
-        $notification = $owner->notifications()->find($notificationId);
+        $notification = $user->notifications()->find($notificationId);
 
         if (!$notification) {
             return response()->json(['message' => 'Notification not found.'], 404);
