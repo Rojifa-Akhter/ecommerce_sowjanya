@@ -164,7 +164,7 @@ class OrderController extends Controller
     {
         $user = Auth::user();
 
-        if ($user->role !== 'admin') {
+        if ($user->role !== 'ADMIN') {
             return response()->json([
                 'status' => false,
                 'message' => 'Unauthorized access. Only admins can view notifications.',
