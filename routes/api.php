@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\backend\AboutController;
+use App\Http\Controllers\backend\adminController;
 use App\Http\Controllers\backend\AuthController;
 use App\Http\Controllers\backend\BlogController;
 use App\Http\Controllers\backend\FAQController;
@@ -49,13 +50,15 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
     Route::post('/faq-add', [FAQController::class, 'faqAdd']);
 
     //users
-    Route::get('/users', [AuthController::class, 'viewUserInfo']);
-    Route::delete('/users/{id}', [AuthController::class, 'deleteUser']);
+    Route::get('/admin-profile', [AdminController::class, 'viewAdminProfile']);
+
+    Route::get('/users', [adminController::class, 'viewUserInfo']);
+    Route::delete('/users/{id}', [adminController::class, 'deleteUser']);
 
     //dashboard
-    Route::get('/statistics', [AuthController::class, 'getDashboardStatistics']);
-    Route::get('/analytics', [AuthController::class, 'analytics']);
-    Route::get('/most-earning', [AuthController::class, 'earningChart']);
+    Route::get('/statistics', [adminController::class, 'getDashboardStatistics']);
+    Route::get('/analytics', [adminController::class, 'analytics']);
+    Route::get('/most-earning', [adminController::class, 'earningChart']);
 
     //get notification after order
     Route::get('/notify',[OrderController::class, 'getAdminNotifications']);
@@ -64,6 +67,7 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
 
 });
 Route::get('/product-view', [UserController::class, 'productView']);
+
 Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/blog-list', [BlogController::class, 'blogList']);
 
@@ -79,6 +83,7 @@ Route::middleware(['auth:api', 'USER'])->group(function () {
 
     Route::post('/create-order', [OrderController::class, 'payment']);
     Route::post('/success-payment', [OrderController::class, 'paymentSuccess']);
+    // Route::post('/cancel-order', [OrderController::class, 'cancelOrder']);
 
     // Review
     Route::post('/reviews', [UserController::class, 'createReview']);

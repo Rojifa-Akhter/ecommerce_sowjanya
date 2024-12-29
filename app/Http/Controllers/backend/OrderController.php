@@ -84,8 +84,6 @@ class OrderController extends Controller
                 'confirm' => false,
             ]);
 
-
-
             return response()->json([
                 'status' => true,
                 'message' => 'Payment intent created successfully.',
@@ -110,8 +108,7 @@ class OrderController extends Controller
             'street_address' => 'nullable|string',
             'city' => 'nullable|string',
             'state' => 'nullable|string',
-            'payment_status' => 'required|in:success,failure', // Added payment status validation
-
+            'payment_status' => 'required|in:success,failure',
         ]);
 
         if ($validator->fails()) {
@@ -122,7 +119,7 @@ class OrderController extends Controller
         }
 
         try {
-
+            // Create the order record
             $order = Order::create([
                 'user_id' => $request->user_id,
                 'product_id' => $request->product_id,
@@ -134,16 +131,39 @@ class OrderController extends Controller
                 'contact' => $request->contact,
             ]);
 
-            $adminUsers = User::where('role', 'admin')->get();
+            // If payment is successful, update the product's sales count and quantity
+            if ($request->payment_status === 'success') {
+                $product = Product::find($request->product_id);
+                if ($product) {
+                    // Decrement the quantity by 1
+                    if ($product->quantity > 0) {
+                        $product->decrement('quantity');
 
-            // Send notifications to each admin
-            foreach ($adminUsers as $adminUser) {
-                $adminUser->notify(new OrderPlaced($order));
+                        // Update the no_of_sale column to 1 (only reflect the last order)
+                        $product->update(['no_of_sale' => 1]);
+                    } else {
+                        return response()->json([
+                            'status' => false,
+                            'message' => 'Not enough stock available.',
+                        ], 400);
+                    }
+                }
+            }
+
+            // Get product details for notification
+            $product = Product::firstOrFail($request->product_id);
+            $orderDate = $order->created_at->format('Y-m-d H:i:s');
+            $address = $request->street_address . ', ' . $request->city . ', ' . $request->state;
+
+            // Notify admin users about the order
+            $adminUsers = User::where('role', 'ADMIN')->get();
+            foreach ($adminUsers as $admin) {
+                $admin->notify(new OrderPlaced($order, $product, $product->no_of_sale, $address, $orderDate));
             }
 
             return response()->json([
                 'status' => true,
-                'message' => 'Payment recorded successfully and notification sent to admins.',
+                'message' => 'Payment recorded successfully, notification sent to admins, and product sales updated.',
                 'data' => $order,
             ], 200);
         } catch (Exception $e) {
@@ -155,37 +175,73 @@ class OrderController extends Controller
         }
     }
 
-    public function cancel()
+    public function cancelOrder($orderId)
     {
-        return response()->json(['message' => 'Payment was canceled.'], 400);
+        try {
+            $order = Order::findOrFail($orderId);
+
+            // Check if the order is already delivered
+            if ($order->status === 'delivered') {
+                $product = Product::find($order->product_id);
+
+                if ($product) {
+                    // Decrease the sale count and increase the quantity (refund process)
+                    $product->decrement('no_of_sale');
+                    $product->increment('quantity');
+                }
+
+                // Update order status to 'canceled'
+                $order->update(['status' => 'canceled']);
+
+                return response()->json([
+                    'status' => true,
+                    'message' => 'Order canceled successfully, stock updated.',
+                ], 200);
+            } else {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Order cannot be canceled, it is not yet delivered.',
+                ], 400);
+            }
+        } catch (Exception $e) {
+            Log::error($e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to cancel the order.',
+            ], 500);
+        }
     }
 
-    public function getAdminNotifications()
-    {
-        $user = Auth::user();
+    public function getAdminNotifications(Request $request)
+{
+    // Get the number of notifications per page from the query parameter (default is 10)
+    $perPage = $request->query('per_page', 10);
+    $user = Auth::user();
 
-        if ($user->role !== 'ADMIN') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Unauthorized access. Only admins can view notifications.',
-            ], 403);
-        }
-
-        // Check if the user has notifications
-        $notifications = $user->notifications()->get();
-
-        if ($notifications->isEmpty()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'No notifications available.',
-            ], 404);
-        }
-
+    // Check if the user is an admin
+    if ($user->role !== 'ADMIN') {
         return response()->json([
-            'status' => 'success',
-            'notifications' => $notifications,
-        ], 200);
+            'status' => false,
+            'message' => 'Unauthorized access. Only admins can view notifications.',
+        ], 403);
     }
+
+    // Get notifications for the authenticated user and paginate them
+    $notifications = $user->notifications()->paginate($perPage);
+
+    if ($notifications->isEmpty()) {
+        return response()->json([
+            'status' => false,
+            'message' => 'No notifications available.',
+        ], 404);
+    }
+
+    return response()->json([
+        'status' => 'success',
+        'notifications' => $notifications,
+    ], 200);
+}
+
 
     public function markNotification($notificationId)
     {

@@ -16,11 +16,12 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
             $table->string('transaction_id')->nullable();
+            $table->string('quantity_ordered')->nullable();
             $table->decimal('amount', 8, 2);
             $table->enum('status',['delivered','pending'])->default('pending');
             $table->string('street_address')->nullable();
             $table->string('city')->nullable();
-            $table->string('contact')->nullable(); 
+            $table->string('contact')->nullable();
             $table->timestamps();
         });
 

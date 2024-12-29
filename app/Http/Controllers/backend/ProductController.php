@@ -122,7 +122,7 @@ class ProductController extends Controller
             return response()->json(['status' => 'error', 'message' => "Invalid filter value."], 400);
         }
 
-        $products = $productsQuery->select('title', 'image', 'price', 'quantity', 'no_of_sale', 'stock')
+        $products = $productsQuery->select('title', 'image', 'price', 'quantity','description', 'no_of_sale', 'stock')
             ->paginate($perPage);
 
         $defaultImage = url(Storage::url('product_images/default_image.jpg'));
