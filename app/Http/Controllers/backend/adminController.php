@@ -128,17 +128,16 @@ class adminController extends Controller
                 break;
         }
 
-        // Get the previous period dates based on the selected period
         if ($period == 'weekly') {
             // Previous week's start and end dates
             $previousStartOfPeriod = now()->subWeek()->startOfWeek();
             $previousEndOfPeriod = now()->subWeek()->endOfWeek();
         } elseif ($period == 'monthly') {
-            // Previous month's start and end dates
+
             $previousStartOfPeriod = now()->subMonth()->startOfMonth();
             $previousEndOfPeriod = now()->subMonth()->endOfMonth();
         } elseif ($period == 'yearly') {
-            // Previous year's start and end dates
+
             $previousStartOfPeriod = now()->subYear()->startOfYear();
             $previousEndOfPeriod = now()->subYear()->endOfYear();
         }
@@ -163,11 +162,11 @@ class adminController extends Controller
         $orderStatus = $orderGrowthPercentage >= 1 ? 'up' : 'down';
         $earningStatus = $earningGrowthPercentage >= 1 ? 'up' : 'down';
 
-        // Return the statistics with up/down status and period filter
+
         return response()->json([
             'status' => 'success',
             'data' => [
-                'period' => $period, 
+                'period' => $period,
                 'users' => [
                     'total_users' => $totalUsers,
                     'growth_percentage' => round($userGrowthPercentage, 2),
@@ -186,15 +185,13 @@ class adminController extends Controller
             ],
         ], 200);
     }
-
-
-
     //website visitor
+
     public function analytics(Request $request)
     {
         // Get filter type, default to weekly
         $filter = $request->query('filter', 'weekly');
-        $year = $request->query('year', date('Y')); // Default to the current year if not provided
+        $year = $request->query('year', date('Y'));
 
         // Initialize variables to hold statistics
         $statistics = [];
@@ -207,28 +204,32 @@ class adminController extends Controller
             ->pluck('year');
 
         if ($filter == 'weekly') {
-            // Weekly data processing for a specific year
-            $weeklyStatistics = User::selectRaw('WEEK(created_at) as week, COUNT(*) as total_user')
+            // Get weekly user data
+            $weeklyStatistics = User::selectRaw('WEEK(created_at, 1) as week, COUNT(*) as total_user')
                 ->whereYear('created_at', $year)
                 ->groupBy('week')
-                ->orderBy('week')
-                ->get()
-                ->keyBy('week');
+                ->pluck('total_user', 'week');
 
-            $weeklyOrders = Order::selectRaw('WEEK(created_at) as week, COUNT(*) as total_orders')
+            // Get weekly order data
+            $weeklyOrders = Order::selectRaw('WEEK(created_at, 1) as week, COUNT(*) as total_orders')
                 ->whereYear('created_at', $year)
                 ->groupBy('week')
-                ->orderBy('week')
-                ->get()
-                ->keyBy('week');
+                ->pluck('total_orders', 'week');
 
+            // Loop through all weeks and prepare data
+            $statistics = [];
             for ($i = 1; $i <= 52; $i++) {
+                $startOfWeek = \Carbon\Carbon::now()->setISODate($year, $i)->startOfWeek();
+                $month_name = $startOfWeek->format('F'); // Get the month name
+
                 $statistics[] = [
                     'week' => $i,
-                    'total_users' => $weeklyStatistics->get($i)->total_user ?? 0,
-                    'total_orders' => $weeklyOrders->get($i)->total_orders ?? 0,
+                    'month_name' => $month_name,
+                    'total_users' => $weeklyStatistics[$i] ?? 0,
+                    'total_orders' => $weeklyOrders[$i] ?? 0,
                 ];
             }
+
         } elseif ($filter == 'monthly') {
             // Monthly data processing for a specific year
             $monthlyStatistics = User::selectRaw('MONTH(created_at) as month, COUNT(*) as total_user')
@@ -297,37 +298,32 @@ class adminController extends Controller
         )
             ->whereYear('created_at', $year) // Filter by year
             ->groupBy('month_name', 'month')
-            ->orderBy('month')
+            ->orderByRaw('FIELD(month_name, "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")')
             ->get();
 
         // Sort data by total earnings in descending order
         $sortedData = $data->sortByDesc('total_earnings');
 
-        // Take top 4 months with highest earnings
         $topMonths = $sortedData->take(4)->map(function ($month) {
             return [
                 'month_name' => $month->month_name,
-                'total_earnings' => $month->total_earnings,
+                'total_earnings' => (float) $month->total_earnings,
             ];
-        });
-
-        // Get the most earning month (first in the sorted list)
+        })->values();
         $mostEarningMonth = $sortedData->first();
 
-        // Calculate the total earnings for the year
         $totalYearEarnings = $data->sum('total_earnings');
 
-        // Calculate the percentage of the most earning month
         $mostEarningMonthPercentage = $totalYearEarnings ? ($mostEarningMonth->total_earnings / $totalYearEarnings) * 100 : 0;
 
         return response()->json([
             'status' => 'success',
             'year' => $year,
-            'top_months' => $topMonths,
+            'top_months' => $topMonths, // Return as array with indexed keys
             'most_earning_month' => $mostEarningMonth ? [
                 'month_name' => $mostEarningMonth->month_name,
-                'total_earnings' => $mostEarningMonth->total_earnings,
-                'percentage' => round($mostEarningMonthPercentage, 2), // Include percentage
+                'total_earnings' => (float) $mostEarningMonth->total_earnings,
+                'percentage' => round($mostEarningMonthPercentage, 2),
             ] : null,
         ]);
     }
