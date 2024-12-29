@@ -119,7 +119,6 @@ class OrderController extends Controller
         }
 
         try {
-            // Create the order record
             $order = Order::create([
                 'user_id' => $request->user_id,
                 'product_id' => $request->product_id,
@@ -139,7 +138,6 @@ class OrderController extends Controller
                     if ($product->quantity > 0) {
                         $product->decrement('quantity');
 
-                        // Update the no_of_sale column to 1 (only reflect the last order)
                         $product->update(['no_of_sale' => 1]);
                     } else {
                         return response()->json([
@@ -155,7 +153,6 @@ class OrderController extends Controller
             $orderDate = $order->created_at->format('Y-m-d H:i:s');
             $address = $request->street_address . ', ' . $request->city . ', ' . $request->state;
 
-            // Notify admin users about the order
             $adminUsers = User::where('role', 'ADMIN')->get();
             foreach ($adminUsers as $admin) {
                 $admin->notify(new OrderPlaced($order, $product, $product->no_of_sale, $address, $orderDate));
@@ -213,34 +210,31 @@ class OrderController extends Controller
     }
 
     public function getAdminNotifications(Request $request)
-{
-    // Get the number of notifications per page from the query parameter (default is 10)
-    $perPage = $request->query('per_page', 10);
-    $user = Auth::user();
+    {
+        $perPage = $request->query('per_page', 10);
+        $user = Auth::user();
 
-    // Check if the user is an admin
-    if ($user->role !== 'ADMIN') {
+        if ($user->role !== 'ADMIN') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized access. Only admins can view notifications.',
+            ], 403);
+        }
+
+        $notifications = $user->notifications()->paginate($perPage);
+
+        if ($notifications->isEmpty()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No notifications available.',
+            ], 404);
+        }
+
         return response()->json([
-            'status' => false,
-            'message' => 'Unauthorized access. Only admins can view notifications.',
-        ], 403);
+            'status' => 'success',
+            'notifications' => $notifications,
+        ], 200);
     }
-
-    // Get notifications for the authenticated user and paginate them
-    $notifications = $user->notifications()->paginate($perPage);
-
-    if ($notifications->isEmpty()) {
-        return response()->json([
-            'status' => false,
-            'message' => 'No notifications available.',
-        ], 404);
-    }
-
-    return response()->json([
-        'status' => 'success',
-        'notifications' => $notifications,
-    ], 200);
-}
 
 
     public function markNotification($notificationId)

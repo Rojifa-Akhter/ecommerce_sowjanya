@@ -104,67 +104,90 @@ class adminController extends Controller
 
     //dashboard for admin
     public function getDashboardStatistics(Request $request)
-{
-    $period = $request->input('period', 'weekly');
+    {
+        $period = $request->input('period', 'weekly');
 
-    // Set date range based on period (weekly, monthly, yearly)
-    switch ($period) {
-        case 'weekly':
-            $startOfPeriod = now()->startOfWeek();
-            $endOfPeriod = now()->endOfWeek();
-            break;
-        case 'monthly':
-            $startOfPeriod = now()->startOfMonth();
-            $endOfPeriod = now()->endOfMonth();
-            break;
-        case 'yearly':
-            $startOfPeriod = now()->startOfYear();
-            $endOfPeriod = now()->endOfYear();
-            break;
-        default:
-            $startOfPeriod = now()->startOfWeek();
-            $endOfPeriod = now()->endOfWeek();
-            break;
+        // Set date range based on period (weekly, monthly, yearly)
+        switch ($period) {
+            case 'weekly':
+                $startOfPeriod = now()->startOfWeek();
+                $endOfPeriod = now()->endOfWeek();
+                break;
+            case 'monthly':
+                $startOfPeriod = now()->startOfMonth();
+                $endOfPeriod = now()->endOfMonth();
+                break;
+            case 'yearly':
+                $startOfPeriod = now()->startOfYear();
+                $endOfPeriod = now()->endOfYear();
+                break;
+            default:
+                // Default to weekly if an invalid period is passed
+                $startOfPeriod = now()->startOfWeek();
+                $endOfPeriod = now()->endOfWeek();
+                break;
+        }
+
+        // Get the previous period dates based on the selected period
+        if ($period == 'weekly') {
+            // Previous week's start and end dates
+            $previousStartOfPeriod = now()->subWeek()->startOfWeek();
+            $previousEndOfPeriod = now()->subWeek()->endOfWeek();
+        } elseif ($period == 'monthly') {
+            // Previous month's start and end dates
+            $previousStartOfPeriod = now()->subMonth()->startOfMonth();
+            $previousEndOfPeriod = now()->subMonth()->endOfMonth();
+        } elseif ($period == 'yearly') {
+            // Previous year's start and end dates
+            $previousStartOfPeriod = now()->subYear()->startOfYear();
+            $previousEndOfPeriod = now()->subYear()->endOfYear();
+        }
+
+        //  (total users, total orders, total earnings)
+        $totalUsers = User::whereBetween('created_at', [$startOfPeriod, $endOfPeriod])->count();
+        $totalOrders = Order::whereBetween('created_at', [$startOfPeriod, $endOfPeriod])->count();
+        $totalEarning = Order::whereBetween('created_at', [$startOfPeriod, $endOfPeriod])->sum('amount');
+
+        //  (total users, total orders, total earnings)
+        $previousUsers = User::whereBetween('created_at', [$previousStartOfPeriod, $previousEndOfPeriod])->count();
+        $previousOrders = Order::whereBetween('created_at', [$previousStartOfPeriod, $previousEndOfPeriod])->count();
+        $previousEarning = Order::whereBetween('created_at', [$previousStartOfPeriod, $previousEndOfPeriod])->sum('amount');
+
+        // Calculate growth percentages for users, orders, and earnings
+        $userGrowthPercentage = $previousUsers ? (($totalUsers - $previousUsers) / $previousUsers) * 100 : 0;
+        $orderGrowthPercentage = $previousOrders ? (($totalOrders - $previousOrders) / $previousOrders) * 100 : 0;
+        $earningGrowthPercentage = $previousEarning ? (($totalEarning - $previousEarning) / $previousEarning) * 100 : 0;
+
+        // Determine the status (up/down) based on the growth percentage
+        $userStatus = $userGrowthPercentage >= 1 ? 'up' : 'down';
+        $orderStatus = $orderGrowthPercentage >= 1 ? 'up' : 'down';
+        $earningStatus = $earningGrowthPercentage >= 1 ? 'up' : 'down';
+
+        // Return the statistics with up/down status and period filter
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'period' => $period, 
+                'users' => [
+                    'total_users' => $totalUsers,
+                    'growth_percentage' => round($userGrowthPercentage, 2),
+                    'status' => $userStatus,
+                ],
+                'orders' => [
+                    'total_orders' => $totalOrders,
+                    'growth_percentage' => round($orderGrowthPercentage, 2),
+                    'status' => $orderStatus,
+                ],
+                'total_earning' => [
+                    'total_earning' => $totalEarning ?? 0,
+                    'growth_percentage' => round($earningGrowthPercentage, 2),
+                    'status' => $earningStatus,
+                ],
+            ],
+        ], 200);
     }
 
-    // Previous period dates
-    $previousStartOfPeriod = now()->subWeek()->startOfWeek();
-    $previousEndOfPeriod = now()->subWeek()->endOfWeek();
 
-    // Get current period statistics
-    $totalUsers = User::whereBetween('created_at', [$startOfPeriod, $endOfPeriod])->count();
-    $totalOrders = Order::whereBetween('created_at', [$startOfPeriod, $endOfPeriod])->count();
-    $totalEarning = Order::whereBetween('created_at', [$startOfPeriod, $endOfPeriod])->sum('amount');
-
-    // Get previous period statistics
-    $previousUsers = User::whereBetween('created_at', [$previousStartOfPeriod, $previousEndOfPeriod])->count();
-    $previousOrders = Order::whereBetween('created_at', [$previousStartOfPeriod, $previousEndOfPeriod])->count();
-    $previousEarning = Order::whereBetween('created_at', [$previousStartOfPeriod, $previousEndOfPeriod])->sum('amount');
-
-    // Calculate growth percentages
-    $userGrowthPercentage = $previousUsers ? (($totalUsers - $previousUsers) / $previousUsers) * 100 : 0;
-    $orderGrowthPercentage = $previousOrders ? (($totalOrders - $previousOrders) / $previousOrders) * 100 : 0;
-    $earningGrowthPercentage = $previousEarning ? (($totalEarning - $previousEarning) / $previousEarning) * 100 : 0;
-
-    // Return the statistics in separate objects
-    return response()->json([
-        'status' => 'success',
-        'data' => [
-            'users' => [
-                'total_users' => $totalUsers,
-                'growth_percentage' => round($userGrowthPercentage, 2),
-            ],
-            'orders' => [
-                'total_orders' => $totalOrders,
-                'growth_percentage' => round($orderGrowthPercentage, 2),
-            ],
-            'earning' => [
-                'total_earning' => $totalEarning ?? 0,
-                'growth_percentage' => round($earningGrowthPercentage, 2),
-            ],
-        ],
-    ], 200);
-}
 
     //website visitor
     public function analytics(Request $request)
@@ -266,6 +289,7 @@ class adminController extends Controller
     {
         $year = $request->query('year', date('Y'));
 
+        // Get total earnings by month for the given year
         $data = Order::select(
             DB::raw("SUM(amount) as total_earnings"),
             DB::raw("MONTHNAME(created_at) as month_name"),
@@ -276,8 +300,10 @@ class adminController extends Controller
             ->orderBy('month')
             ->get();
 
+        // Sort data by total earnings in descending order
         $sortedData = $data->sortByDesc('total_earnings');
 
+        // Take top 4 months with highest earnings
         $topMonths = $sortedData->take(4)->map(function ($month) {
             return [
                 'month_name' => $month->month_name,
@@ -285,7 +311,14 @@ class adminController extends Controller
             ];
         });
 
+        // Get the most earning month (first in the sorted list)
         $mostEarningMonth = $sortedData->first();
+
+        // Calculate the total earnings for the year
+        $totalYearEarnings = $data->sum('total_earnings');
+
+        // Calculate the percentage of the most earning month
+        $mostEarningMonthPercentage = $totalYearEarnings ? ($mostEarningMonth->total_earnings / $totalYearEarnings) * 100 : 0;
 
         return response()->json([
             'status' => 'success',
@@ -294,7 +327,9 @@ class adminController extends Controller
             'most_earning_month' => $mostEarningMonth ? [
                 'month_name' => $mostEarningMonth->month_name,
                 'total_earnings' => $mostEarningMonth->total_earnings,
+                'percentage' => round($mostEarningMonthPercentage, 2), // Include percentage
             ] : null,
         ]);
     }
+
 }
