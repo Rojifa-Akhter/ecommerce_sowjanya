@@ -83,7 +83,7 @@ class ProductController extends Controller
         // Send notification
         $message = $product->wasRecentlyCreated ? 'Product added successfully' : 'Product updated successfully';
         if ($product->wasRecentlyCreated) {
-            Notification::send(User::all(), new ProductAddedNotification($product));
+            Notification::send(User::where('role','USER'), new ProductAddedNotification($product));
         }
 
         return response()->json([
@@ -180,7 +180,7 @@ class ProductController extends Controller
         $product->price = $validatedData['price'] ?? $product->price;
         $product->sale_price = $validatedData['sale_price'] ?? $product->sale_price;
         $product->SKU = $validatedData['SKU'] ?? $product->SKU;
-        
+
         $product->tags = $validatedData['tags'] ?? $product->tags;
         $product->color = $validatedData['color'] ?? $product->color;
         $product->size = $validatedData['size'] ?? $product->size;
