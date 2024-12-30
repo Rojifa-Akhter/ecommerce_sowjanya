@@ -122,7 +122,7 @@ class ProductController extends Controller
             return response()->json(['status' => 'error', 'message' => "Invalid filter value."], 400);
         }
 
-        $products = $productsQuery->select('title', 'image', 'price', 'quantity','description', 'no_of_sale', 'stock')
+        $products = $productsQuery->select('id', 'title', 'image', 'price', 'quantity', 'description', 'no_of_sale', 'stock')
             ->paginate($perPage);
 
         $defaultImage = url(Storage::url('product_images/default_image.jpg'));
@@ -153,13 +153,13 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'price' => 'nullable|numeric',
             'sale_price' => 'nullable|numeric',
-            'SKU' => 'nullable|numeric',
-            'stock' => 'nullable|numeric',
-            'tags' => 'nullable|numeric',
+            'SKU' => 'nullable|string',
+            'quantity' => 'nullable|integer|min:0',
+            'tags' => 'nullable|string',
             'color' => 'nullable|array',
-            'size' => 'nullable|numeric',
-            // 'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
+            'size' => 'nullable|string',
             'images' => 'nullable|array|max:5',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:10240',
         ]);
 
         if ($validator->fails()) {
@@ -172,6 +172,7 @@ class ProductController extends Controller
 
         $validatedData = $validator->validated();
 
+        // Update product attributes
         $product->title = $validatedData['title'] ?? $product->title;
         $product->category = $validatedData['category'] ?? $product->category;
         $product->brand = $validatedData['brand'] ?? $product->brand;
@@ -179,16 +180,28 @@ class ProductController extends Controller
         $product->price = $validatedData['price'] ?? $product->price;
         $product->sale_price = $validatedData['sale_price'] ?? $product->sale_price;
         $product->SKU = $validatedData['SKU'] ?? $product->SKU;
-        $product->stock = $validatedData['stock'] ?? $product->stock;
+        
         $product->tags = $validatedData['tags'] ?? $product->tags;
         $product->color = $validatedData['color'] ?? $product->color;
         $product->size = $validatedData['size'] ?? $product->size;
 
-        // Delete old images if new images are uploaded
+        // Update stock status based on quantity
+        if (isset($validatedData['quantity'])) {
+            $product->quantity = $validatedData['quantity'];
+            if ($product->quantity < 1) {
+                $product->stock = 'Out of Stock';
+            } elseif ($product->quantity <= 5) {
+                $product->stock = 'Low Stock';
+            } else {
+                $product->stock = 'In Stock';
+            }
+        }
+
+        // Handle image updates
         if ($request->hasFile('images')) {
             // Delete old images from storage
             if (!empty($product->image)) {
-                foreach ($product->image as $oldImage) {
+                foreach (json_decode($product->image, true) as $oldImage) {
                     $filePath = str_replace(asset('storage/'), '', $oldImage);
                     Storage::disk('public')->delete($filePath);
                 }
@@ -202,7 +215,7 @@ class ProductController extends Controller
                     $imagePaths[] = asset('storage/' . $path);
                 }
             }
-            $product->image = $imagePaths;
+            $product->image = json_encode($imagePaths);
         }
 
         $product->save();
