@@ -2,18 +2,19 @@
 
 namespace App\Http\Controllers\backend;
 
-use App\Http\Controllers\Controller;
+use Exception;
+use Stripe\Stripe;
+use App\Models\User;
 use App\Models\Order;
 use App\Models\Product;
-use App\Models\User;
-use App\Notifications\OrderPlaced;
-use Exception;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 use Stripe\PaymentIntent;
-use Stripe\Stripe;
+use Illuminate\Http\Request;
+use App\Notifications\OrderPlaced;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
 {
@@ -222,6 +223,7 @@ class OrderController extends Controller
         }
 
         $notifications = $user->notifications()->paginate($perPage);
+        $unread= DB::table('notifications')->where('notifiable_id',1)->whereNull('read_at')->count();
 
         if ($notifications->isEmpty()) {
             return response()->json([
@@ -232,6 +234,7 @@ class OrderController extends Controller
 
         return response()->json([
             'status' => 'success',
+            'unread_notification'=>$unread,
             'notifications' => $notifications,
         ], 200);
     }
@@ -240,6 +243,13 @@ class OrderController extends Controller
     public function markNotification($notificationId)
     {
         $user = Auth::user();
+
+        if ($user->role !== 'ADMIN') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized access. Only admins can view notifications.',
+            ], 403);
+        }
 
         $notification = $user->notifications()->find($notificationId);
 
@@ -254,6 +264,30 @@ class OrderController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Notification marked as read.'], 200);
+    }
+    public function markAllNotification(Request $request)
+    {
+        $user = Auth::user();
+
+        if ($user->role !== 'ADMIN') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized access. Only admins can manage notifications.',
+            ], 403);
+        }
+
+        $notifications = $user->unreadNotifications;
+
+        if ($notifications->isEmpty()) {
+            return response()->json(['message' => 'No unread notifications found.'], 404);
+        }
+
+        $notifications->markAsRead();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'All notifications marked as read.',
+        ], 200);
     }
 
 }

@@ -45,6 +45,7 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
 
    // about us Routes
    Route::post('/about-add', [AboutController::class, 'aboutAdd']);
+   Route::get('/aboutList', [AboutController::class, 'aboutList']);
 
     // FAQ us Routes
     Route::post('/faq-add', [FAQController::class, 'faqAdd']);
@@ -60,9 +61,10 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
     Route::get('/analytics', [adminController::class, 'analytics']);
     Route::get('/most-earning', [adminController::class, 'earningChart']);
 
-    //get notification after order
+    //this notification for admin
     Route::get('/notify',[OrderController::class, 'getAdminNotifications']);
-    Route::get('/notify/{id}', [OrderController::class, 'markNotification']);
+    Route::post('/notify/{id}', [OrderController::class, 'markNotification']);
+    Route::post('/notify-all-read', [OrderController::class, 'markAllNotification']);
 
 
 });

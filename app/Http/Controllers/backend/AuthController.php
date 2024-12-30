@@ -143,21 +143,21 @@ class AuthController extends Controller
     // update profile
     public function updateProfile(Request $request)
     {
-        //  return $request;
+        // Authenticate user
         $user = Auth::guard('api')->user();
 
         if (!$user) {
             return response()->json(['status' => 'error', 'message' => 'User not authenticated.'], 401);
         }
 
+        // Validate input
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'email' => 'nullable|email|unique:users,email,' . $user->id,
+            // 'email' => 'nullable|email|unique:users,email,' . $user->id,
             'address' => 'nullable|string|max:255',
             'contact' => 'nullable|string|max:16',
             'password' => 'nullable|string|min:6|confirmed',
-            // 'image' => 'nullable|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
-            // 'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
+            'image' => 'required',
         ]);
 
         if ($validator->fails()) {
@@ -170,8 +170,9 @@ class AuthController extends Controller
 
         $validatedData = $validator->validated();
 
+        // Update user data
         $user->name = $validatedData['name'] ?? $user->name;
-        $user->email = $validatedData['email'] ?? $user->email;
+        // $user->email = $validatedData['email'] ?? $user->email;
         $user->address = $validatedData['address'] ?? $user->address;
         $user->contact = $validatedData['contact'] ?? $user->contact;
 
@@ -179,13 +180,24 @@ class AuthController extends Controller
             $user->password = Hash::make($validatedData['password']);
         }
 
+        // Handle image upload
         if ($request->hasFile('image')) {
+            // Delete the existing image if it exists
+            if (!empty($user->image)) {
+                $oldImagePath = str_replace(asset('storage/'), '', $user->image);
+                if (Storage::disk('public')->exists($oldImagePath)) {
+                    Storage::disk('public')->delete($oldImagePath);
+                }
+            }
+
+            // Store the new image
             $path = $request->file('image')->store('profile_images', 'public');
             $user->image = asset('storage/' . $path);
         }
 
         $user->save();
 
+        // Return the updated user profile
         return response()->json([
             'status' => 'success',
             'message' => 'Profile updated successfully.',

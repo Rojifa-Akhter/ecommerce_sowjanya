@@ -20,7 +20,7 @@ class BlogFactory extends Factory
             'title' => $this->faker->title(),
             'description' => $this->faker->paragraph(),
             'image' => $this->faker->imageUrl(),
-            'date' => $this->faker->date(),
+            // 'date' => $this->faker->date(),
 
         ];
     }
