@@ -23,14 +23,14 @@ class AboutController extends Controller
             return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
         }
 
-        $about = About::first(); 
+        $about = About::first();
 
         $newImages = [];
         if ($request->hasFile('images')) {
             // Store new images
             foreach ($request->file('images') as $image) {
                 $path = $image->store('about_images', 'public');
-                $newImages[] = asset('storage/' . $path);
+                $newImages[] = $path;
             }
         }
 
@@ -49,11 +49,17 @@ class AboutController extends Controller
                 'image' => json_encode($newImages),
             ]);
         }
+        $imageUrls = array_map(fn($path) => asset('storage/' . $path), $newImages);
 
         return response()->json([
             'status' => 'success',
             'message' => $about->wasRecentlyCreated ? 'About created successfully' : 'About updated successfully',
-            'about' => $about,
+            'about' => [
+                'id' => $about->id,
+                'title' => $about->title,
+                'description' => $about->description,
+                'image' => $imageUrls,
+            ],
         ], 200);
     }
     public function aboutList()

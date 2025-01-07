@@ -20,7 +20,6 @@ class ProductController extends Controller
     public function productAdd(Request $request)
     {
         // return $request;
-        // Validation
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'category' => 'nullable|string|max:255',
@@ -42,7 +41,7 @@ class ProductController extends Controller
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
                 $path = $image->store('product_images', 'public');
-                $imagePaths[] = asset('storage/' . $path);
+                $imagePaths[] = $path;
             }
         }
 
@@ -56,12 +55,9 @@ class ProductController extends Controller
             $stockStatus = 'Low Stock';
         }
 
-        $product = Product::updateOrCreate(
-            ['title' => $request->title], // Check if product exists by title
-            [
-                // 'category' => $request->category ?? null,
-                // 'brand' => $request->brand ?? null,
-                'image' => $imagePaths ?? [], // Store images as an array
+        $product = Product::create(
+            ['title' => $request->title,
+                'image' => json_encode($imagePaths),
                 'price' => $request->price,
                 'quantity' => $request->quantity,
                 'sale_price' => $request->sale_price,
@@ -76,20 +72,32 @@ class ProductController extends Controller
 
         $product->color = json_decode($product->color);
 
-        $active_user = User::where('role', 'USER')->where('status', 'active')->get();
-        foreach ($active_user as $user) {
+        $imageUrls = array_map(fn($path) => asset('storage/' . $path), $imagePaths);
+
+        $active_users = User::where('role', 'USER')->where('status', 'active')->get();
+        foreach ($active_users as $user) {
             Mail::to($user->email)->send(new ProductAddedMail($product));
         }
-        // Send notification
-        $message = $product->wasRecentlyCreated ? 'Product added successfully' : 'Product updated successfully';
+
         if ($product->wasRecentlyCreated) {
-            Notification::send(User::where('role','USER'), new ProductAddedNotification($product));
+            Notification::send($active_users, new ProductAddedNotification($product));
         }
 
         return response()->json([
             'status' => 'success',
-            'message' => $message,
-            'product' => $product,
+            'message' => 'Product Added Successfully',
+            'product' => [
+                'id' => $product->id,
+                'title' => $product->title,
+                'color' => $product->color,
+                'tags' => $product->tags,
+                'stock' => $product->stock,
+                'SKU' => $product->SKU,
+                'quantity' => $product->quantity,
+                'price' => $product->price,
+                'sale_price' => $product->sale_price,
+                'image' => $imageUrls,
+            ],
         ], 200);
     }
 
@@ -159,7 +167,6 @@ class ProductController extends Controller
             'color' => 'nullable|array',
             'size' => 'nullable|string',
             'images' => 'nullable|array|max:5',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:10240',
         ]);
 
         if ($validator->fails()) {
@@ -172,7 +179,6 @@ class ProductController extends Controller
 
         $validatedData = $validator->validated();
 
-        // Update product attributes
         $product->title = $validatedData['title'] ?? $product->title;
         $product->category = $validatedData['category'] ?? $product->category;
         $product->brand = $validatedData['brand'] ?? $product->brand;
@@ -180,12 +186,10 @@ class ProductController extends Controller
         $product->price = $validatedData['price'] ?? $product->price;
         $product->sale_price = $validatedData['sale_price'] ?? $product->sale_price;
         $product->SKU = $validatedData['SKU'] ?? $product->SKU;
-
         $product->tags = $validatedData['tags'] ?? $product->tags;
         $product->color = $validatedData['color'] ?? $product->color;
         $product->size = $validatedData['size'] ?? $product->size;
 
-        // Update stock status based on quantity
         if (isset($validatedData['quantity'])) {
             $product->quantity = $validatedData['quantity'];
             if ($product->quantity < 1) {
@@ -197,33 +201,52 @@ class ProductController extends Controller
             }
         }
 
-        // Handle image updates
-        if ($request->hasFile('images')) {
-            // Delete old images from storage
-            if (!empty($product->image)) {
-                foreach (json_decode($product->image, true) as $oldImage) {
-                    $filePath = str_replace(asset('storage/'), '', $oldImage);
-                    Storage::disk('public')->delete($filePath);
+        // Get existing image paths
+        $imagePaths = json_decode($product->image, true) ?? [];
+
+        if ($request->has('images')) {
+            // Delete old images
+            foreach ($imagePaths as $path) {
+                $oldPath = str_replace(asset('storage/'), '', $path);
+                if (Storage::disk('public')->exists($oldPath)) {
+                    Storage::disk('public')->delete($oldPath);
                 }
             }
 
-            // Upload new images
-            $imagePaths = [];
+            // Add new images
+            $newImagePaths = [];
             foreach ($request->file('images') as $image) {
-                if ($image->isValid()) {
-                    $path = $image->store('product_images', 'public');
-                    $imagePaths[] = asset('storage/' . $path);
-                }
+                $path = $image->store('product-images', 'public');
+                $newImagePaths[] = $path;
             }
-            $product->image = json_encode($imagePaths);
+
+            // The final image paths should be the new ones only if provided
+            $imagePaths = $newImagePaths;
         }
 
+        // Save updated image paths
+        $product->image = json_encode($imagePaths);
+
         $product->save();
+
+        // Generate image URLs for response
+        $imageUrls = array_map(fn($path) => asset('storage/' . $path), $imagePaths);
 
         return response()->json([
             'status' => 'success',
             'message' => 'Product updated successfully',
-            'product' => $product,
+            'product' => [
+                'id' => $product->id,
+                'title' => $product->title,
+                'color' => $product->color,
+                'tags' => $product->tags,
+                'stock' => $product->stock,
+                'SKU' => $product->SKU,
+                'quantity' => $product->quantity,
+                'price' => $product->price,
+                'sale_price' => $product->sale_price,
+                'image' => $imageUrls,
+            ],
         ], 200);
     }
 

@@ -2,19 +2,21 @@
 
 namespace App\Http\Controllers\backend;
 
-use Exception;
-use Stripe\Stripe;
-use App\Models\User;
+use App\Http\Controllers\Controller;
+use App\Mail\OrderPlaced as MailOrderPlaced;
 use App\Models\Order;
 use App\Models\Product;
-use Stripe\PaymentIntent;
-use Illuminate\Http\Request;
+use App\Models\User;
 use App\Notifications\OrderPlaced;
+use Illuminate\Support\Facades\Mail;
+use Exception;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Stripe\PaymentIntent;
+use Stripe\Stripe;
 
 class OrderController extends Controller
 {
@@ -153,6 +155,10 @@ class OrderController extends Controller
             $product = Product::firstOrFail($request->product_id);
             $orderDate = $order->created_at->format('Y-m-d H:i:s');
             $address = $request->street_address . ', ' . $request->city . ', ' . $request->state;
+            
+            // Send the email to the user
+            $user = User::findOrFail($request->user_id);
+            Mail::to($user->email)->send(new MailOrderPlaced($order, $product, $address, $orderDate));
 
             $adminUsers = User::where('role', 'ADMIN')->get();
             foreach ($adminUsers as $admin) {
@@ -169,6 +175,7 @@ class OrderController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Failed to record payment.',
+
             ], 500);
         }
     }
@@ -223,7 +230,7 @@ class OrderController extends Controller
         }
 
         $notifications = $user->notifications()->paginate($perPage);
-        $unread= DB::table('notifications')->where('notifiable_id',1)->whereNull('read_at')->count();
+        $unread = DB::table('notifications')->where('notifiable_id', 1)->whereNull('read_at')->count();
 
         if ($notifications->isEmpty()) {
             return response()->json([
@@ -234,11 +241,10 @@ class OrderController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'unread_notification'=>$unread,
+            'unread_notification' => $unread,
             'notifications' => $notifications,
         ], 200);
     }
-
 
     public function markNotification($notificationId)
     {

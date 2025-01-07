@@ -36,11 +36,11 @@ class AuthController extends Controller
             return response()->json(['status' => false, 'message' => $validator->errors()], 400);
         }
 
-        $imagePath = null;
+        $path = null;
         if ($request->has('image')) {
             $image = $request->file('image');
             $path = $image->store('profile_images', 'public');
-            $imagePath = asset('storage/' . $path);
+            // $imagePath = asset('storage/' . $path);
         }
 
         $otp = rand(1000, 9999);
@@ -53,7 +53,7 @@ class AuthController extends Controller
             'contact' => $request->contact,
             'password' => Hash::make($request->password),
             'role' => 'USER', // Set default role as 'user'
-            'image' => $imagePath,
+            'image' => $path,
             'otp' => $otp,
             'otp_expires_at' => $otp_expires_at,
             'status' => 'inactive',
@@ -120,7 +120,7 @@ class AuthController extends Controller
         }
 
         $user = Auth::guard('api')->user();
-        $user->image = $user->image ?? asset('img/1.webp');
+        $imageUrl = $user->image ? asset('storage/' . $user->image) : asset('img/1.webp');
 
         return response()->json([
             'status' => 'success',
@@ -131,7 +131,7 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'role' => $user->role,
                 'email_verified_at' => $user->email_verified_at,
-                'image' => $user->image,
+                'image' => $imageUrl,
             ],
         ], 200);
     }
@@ -143,17 +143,15 @@ class AuthController extends Controller
     // update profile
     public function updateProfile(Request $request)
     {
-        // Authenticate user
+
         $user = Auth::guard('api')->user();
 
         if (!$user) {
             return response()->json(['status' => 'error', 'message' => 'User not authenticated.'], 401);
         }
 
-        // Validate input
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            // 'email' => 'nullable|email|unique:users,email,' . $user->id,
             'address' => 'nullable|string|max:255',
             'contact' => 'nullable|string|max:16',
             'password' => 'nullable|string|min:6|confirmed',
@@ -172,7 +170,6 @@ class AuthController extends Controller
 
         // Update user data
         $user->name = $validatedData['name'] ?? $user->name;
-        // $user->email = $validatedData['email'] ?? $user->email;
         $user->address = $validatedData['address'] ?? $user->address;
         $user->contact = $validatedData['contact'] ?? $user->contact;
 
@@ -192,7 +189,7 @@ class AuthController extends Controller
 
             // Store the new image
             $path = $request->file('image')->store('profile_images', 'public');
-            $user->image = asset('storage/' . $path);
+            $user->image = $path;
         }
 
         $user->save();
@@ -207,7 +204,7 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'address' => $user->address,
                 'contact' => $user->contact,
-                'image' => $user->image,
+                'image' => $user->image ? asset('storage/' . $user->image) : null,
                 'role' => $user->role,
             ],
         ], 200);
