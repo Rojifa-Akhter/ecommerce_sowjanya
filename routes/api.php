@@ -7,6 +7,7 @@ use App\Http\Controllers\backend\BlogController;
 use App\Http\Controllers\backend\FAQController;
 use App\Http\Controllers\backend\OrderController;
 use App\Http\Controllers\Backend\ProductController;
+use App\Http\Controllers\backend\TermConditionController;
 use App\Http\Controllers\Backend\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -46,6 +47,9 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
    // about us Routes
    Route::post('/about-add', [AboutController::class, 'aboutAdd']);
    Route::get('/aboutList', [AboutController::class, 'aboutList']);
+
+   //terms and condition
+   Route::post('/create-term', [TermConditionController::class, 'createTerm']);
 
     // FAQ us Routes
     Route::post('/faq-add', [FAQController::class, 'faqAdd']);
@@ -89,6 +93,9 @@ Route::middleware(['auth:api', 'USER'])->group(function () {
 
     // Review
     Route::post('/reviews', [UserController::class, 'createReview']);
+
+   Route::get('/termList', [TermConditionController::class, 'termList']);
+
 
  });
 
