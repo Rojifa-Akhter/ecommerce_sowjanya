@@ -86,18 +86,7 @@ class ProductController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Product Added Successfully',
-            'product' => [
-                'id' => $product->id,
-                'title' => $product->title,
-                'color' => $product->color,
-                'tags' => $product->tags,
-                'stock' => $product->stock,
-                'SKU' => $product->SKU,
-                'quantity' => $product->quantity,
-                'price' => $product->price,
-                'sale_price' => $product->sale_price,
-                'image' => $imageUrls,
-            ],
+            'product' => $product
         ], 200);
     }
 

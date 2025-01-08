@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Blog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class BlogController extends Controller
@@ -17,7 +18,7 @@ class BlogController extends Controller
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
 
-                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
+                'image' => 'nullable',
             ]);
 
             if ($validator->fails()) {
@@ -35,7 +36,7 @@ class BlogController extends Controller
 
             if ($request->hasFile('image')) {
                 $path = $request->file('image')->store('blog_images', 'public');
-                $imagePath = asset('storage/' . $path);
+                $imagePath = $path;
             }
 
             $blog = Blog::create([
@@ -74,7 +75,7 @@ class BlogController extends Controller
 
             if ($request->hasFile('image')) {
                 $path = $request->file('image')->store('blog_images', 'public');
-                $blog->image = asset('storage/' . $path);
+                $blog->image = $path;
             }
 
             $blog->save();
@@ -92,7 +93,9 @@ class BlogController extends Controller
 
             if (!$user) {return response()->json(['status' => 'error', 'message' => 'User not authenticated.'], 401);}
 
-            $defaultImage = asset('img/1.webp');
+            // $defaultImage = asset('img/1.webp');
+            $defaultImage = url(Storage::url('profile_images/default_user.png'));
+
 
             $perPage = $request->query('per_page', 10);
             $blogs = Blog::paginate($perPage);
