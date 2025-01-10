@@ -37,13 +37,21 @@ class ProductController extends Controller
             return response()->json(['status' => false, 'message' => $validator->errors()], 400);
         }
 
-        $imagePaths = [];
-        if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('product_images', 'public');
-                $imagePaths[] = $path;
+        $images = [];
+
+        if ($request->hasFile('image') && is_array($request->file('image'))) {
+            foreach ($request->file('image') as $file) {
+                if ($file->isValid()) {
+                    $extension = $file->getClientOriginalExtension();
+                    $aboutImage = time() . uniqid() . '.' . $extension;
+                    $file->move(public_path('uploads/product_images'), $aboutImage);
+                    $images[] = $aboutImage;
+                }
             }
+        } else {
+            return response()->json(['status' => 'error', 'message' => 'No valid files uploaded.'], 400);
         }
+// return $images;
 
         $colors = $request->color ? json_encode($request->color) : null;
 
@@ -57,7 +65,7 @@ class ProductController extends Controller
 
         $product = Product::create(
             ['title' => $request->title,
-                'image' => json_encode($imagePaths),
+                'image' => json_encode($images),
                 'price' => $request->price,
                 'quantity' => $request->quantity,
                 'sale_price' => $request->sale_price,
@@ -72,8 +80,6 @@ class ProductController extends Controller
 
         $product->color = json_decode($product->color);
 
-        $imageUrls = array_map(fn($path) => asset('storage/' . $path), $imagePaths);
-
         $active_users = User::where('role', 'USER')->where('status', 'active')->get();
         foreach ($active_users as $user) {
             Mail::to($user->email)->send(new ProductAddedMail($product));
@@ -86,7 +92,7 @@ class ProductController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Product Added Successfully',
-            'product' => $product
+            'product' => $product,
         ], 200);
     }
 
@@ -122,11 +128,11 @@ class ProductController extends Controller
         $products = $productsQuery->select('id', 'title', 'image', 'price', 'quantity', 'description', 'no_of_sale', 'stock')
             ->paginate($perPage);
 
-        $defaultImage = url(Storage::url('product_images/default_image.jpg'));
-        $products->getCollection()->transform(function ($product) use ($defaultImage) {
-            $product->image = $product->image ?? $defaultImage;
-            return $product;
-        });
+        // $defaultImage = url(Storage::url('product_images/default_image.jpg'));
+        // $products->getCollection()->transform(function ($product) use ($defaultImage) {
+        //     $product->image = $product->image ?? $defaultImage;
+        //     // return $product;
+        // });
 
         return response()->json([
             'status' => 'success',
@@ -155,7 +161,7 @@ class ProductController extends Controller
             'tags' => 'nullable|string',
             'color' => 'nullable|array',
             'size' => 'nullable|string',
-            'images' => 'nullable|array|max:5',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240', // Allow image files
         ]);
 
         if ($validator->fails()) {
@@ -190,52 +196,42 @@ class ProductController extends Controller
             }
         }
 
-        // Get existing image paths
-        $imagePaths = json_decode($product->image, true) ?? [];
-
+        // Handling image upload
         if ($request->has('images')) {
-            // Delete old images
-            foreach ($imagePaths as $path) {
-                $oldPath = str_replace(asset('storage/'), '', $path);
-                if (Storage::disk('public')->exists($oldPath)) {
-                    Storage::disk('public')->delete($oldPath);
+            $images = [];
+
+            // Delete old images if new ones are uploaded
+            $existingImages = is_array($product->image)
+                ? $product->image
+                : json_decode($product->image, true) ?? [];
+
+                foreach ($existingImages as $oldImage) {
+                    $parsedUrl = parse_url($oldImage);
+                    $filePath = ltrim($parsedUrl['path'], '/');
+                    if (file_exists($filePath)) {
+                        unlink($filePath);
+                    }
+                }
+
+            // Process new images
+            foreach ($request->file('images') as $file) {
+                if ($file->isValid()) {
+                    $extension = $file->getClientOriginalExtension();
+                    $productImage = time() . uniqid() . '.' . $extension;
+                    $file->move(public_path('uploads/product_images'), $productImage);
+                    $images[] = $productImage;
                 }
             }
 
-            // Add new images
-            $newImagePaths = [];
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('product-images', 'public');
-                $newImagePaths[] = $path;
-            }
-
-            // The final image paths should be the new ones only if provided
-            $imagePaths = $newImagePaths;
+            $product->image = json_encode($images);
         }
 
-        // Save updated image paths
-        $product->image = json_encode($imagePaths);
-
         $product->save();
-
-        // Generate image URLs for response
-        $imageUrls = array_map(fn($path) => asset('storage/' . $path), $imagePaths);
 
         return response()->json([
             'status' => 'success',
             'message' => 'Product updated successfully',
-            'product' => [
-                'id' => $product->id,
-                'title' => $product->title,
-                'color' => $product->color,
-                'tags' => $product->tags,
-                'stock' => $product->stock,
-                'SKU' => $product->SKU,
-                'quantity' => $product->quantity,
-                'price' => $product->price,
-                'sale_price' => $product->sale_price,
-                'image' => $imageUrls,
-            ],
+            'product' => $product,
         ], 200);
     }
 

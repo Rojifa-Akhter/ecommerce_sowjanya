@@ -8,6 +8,16 @@ class About extends Model
 {
     protected $guarded = ['id'];
     protected $casts = [
-        'image' => 'array',
+        'images' => 'array',
     ];
+
+    public function getImageAttribute($image)
+    {
+        $images = json_decode($image, true) ?? [];
+// return 'a';
+        // return $images;
+        return array_map(fn($img) => asset('uploads/about_images/' . $img), $images);
+    }
+
+
 }

@@ -160,14 +160,10 @@ class UserController extends Controller
             ->withSum('reviews', 'rating')
             ->paginate($perPage);
 
-        // $products = Product::withCount('reviews')
-        //     ->withSum('reviews', 'rating')
-        //     ->paginate($perPage);
+        // $defaultImage = asset('img/default-product.webp');
 
-        $defaultImage = asset('img/default-product.webp');
-
-        $products->getCollection()->transform(function ($product) use ($defaultImage) {
-            $product->image = $product->image ?: $defaultImage;
+        $products->getCollection()->transform(function ($product)  {
+            // $product->image = $product->image ?: $defaultImage;
 
             // Calculate the average rating
             $averageRating = $product->reviews_count > 0
@@ -253,14 +249,7 @@ class UserController extends Controller
 
         $defaultImage = asset('img/1.webp');
 
-        // Fetch all About records
         $about = About::all();
-
-        // Transform each record
-        $about->transform(function ($about) use ($defaultImage) {
-            $about->image = is_array($about->image) ? $about->image : (json_decode($about->image, true) ?: [$defaultImage]);
-            return $about;
-        });
 
         return response()->json([
             'status' => 'success',

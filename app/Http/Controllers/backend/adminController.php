@@ -51,12 +51,12 @@ class adminController extends Controller
         if ($users->isEmpty()) {
             return response()->json(['message' => 'No users found.'], 200);
         }
-        $defaultImageUrl = url(Storage::url('profile_images/default_user.png'));
+        // $defaultImageUrl = url(Storage::url('profile_images/default_user.png'));
 
-        $users->getCollection()->transform(function ($user) use ($defaultImageUrl) {
-            $user->image = $user->image ?? $defaultImageUrl;
-            return $user;
-        });
+        // $users->getCollection()->transform(function ($user) use ($defaultImageUrl) {
+        //     $user->image = $user->image ?? $defaultImageUrl;
+        //     return $user;
+        // });
 
         return response()->json([
             'status' => 'success',

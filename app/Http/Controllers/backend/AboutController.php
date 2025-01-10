@@ -15,8 +15,8 @@ class AboutController extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            // 'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
-            'images' => 'nullable|array|max:3', // Allow a maximum of 3 images
+            'image' => 'nullable|array|max:3', // Allow a maximum of 3 images
+            // 'image.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240', // Validate each image file
         ]);
 
         if ($validator->fails()) {
@@ -25,12 +25,31 @@ class AboutController extends Controller
 
         $about = About::first();
 
-        $newImages = [];
-        if ($request->hasFile('images')) {
-            // Store new images
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('about_images', 'public');
-                $newImages[] = $path;
+        $images = []; // Initialize the images array to avoid undefined variable errors
+
+        if ($request->hasFile('image')) {
+            // Delete existing images if they exist
+            if ($about && $about->image) {
+                $existingImages = is_array($about->image)
+                ? $about->image
+                : json_decode($about->image, true) ?? [];
+
+                foreach ($existingImages as $oldImage) {
+                    $oldImagePath = public_path('uploads/about_images/' . $oldImage);
+                    if (file_exists($oldImagePath)) {
+                        unlink($oldImagePath); // Delete old image
+                    }
+                }
+            }
+
+            // Handle new image uploads
+            foreach ($request->file('image') as $file) { // Use $file to avoid variable name conflict
+                if ($file->isValid()) {
+                    $extension = $file->getClientOriginalExtension();
+                    $aboutImage = time() . uniqid() . '.' . $extension;
+                    $file->move(public_path('uploads/about_images'), $aboutImage);
+                    $images[] = $aboutImage; // Add new image to the array
+                }
             }
         }
 
@@ -39,29 +58,24 @@ class AboutController extends Controller
             $about->update([
                 'title' => $request->title,
                 'description' => $request->description,
-                'image' => json_encode($newImages ?: json_decode($about->image, true)), // Replace images only if new ones are uploaded
+                'image' => json_encode($images ?: json_decode($about->image, true)), // Replace images only if new ones are uploaded
             ]);
         } else {
             // Create a new record
             $about = About::create([
                 'title' => $request->title,
                 'description' => $request->description,
-                'image' => json_encode($newImages),
+                'image' => json_encode($images), // Save the images
             ]);
         }
-        $imageUrls = array_map(fn($path) => asset('storage/' . $path), $newImages);
 
         return response()->json([
             'status' => 'success',
             'message' => $about->wasRecentlyCreated ? 'About created successfully' : 'About updated successfully',
-            'about' => [
-                'id' => $about->id,
-                'title' => $about->title,
-                'description' => $about->description,
-                'image' => $imageUrls,
-            ],
+            'about' => $about,
         ], 200);
     }
+
     public function aboutList()
     {
         $user = Auth::user();
@@ -72,14 +86,7 @@ class AboutController extends Controller
 
         $defaultImage = asset('img/1.webp');
 
-        // Fetch all About records
         $about = About::all();
-
-        // Transform each record
-        $about->transform(function ($about) use ($defaultImage) {
-            $about->image = is_array($about->image) ? $about->image : (json_decode($about->image, true) ?: [$defaultImage]);
-            return $about;
-        });
 
         return response()->json([
             'status' => 'success',

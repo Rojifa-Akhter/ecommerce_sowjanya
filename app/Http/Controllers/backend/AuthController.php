@@ -4,7 +4,6 @@ namespace App\Http\Controllers\backend;
 
 use App\Http\Controllers\Controller;
 use App\Mail\sendOTP;
-use App\Models\Order;
 use App\Models\User;
 use Exception;
 use Illuminate\Http\Request;
@@ -21,6 +20,7 @@ class AuthController extends Controller
 {
     public function signup(Request $request)
     {
+        // return $request;
 
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
@@ -29,20 +29,27 @@ class AuthController extends Controller
             'contact' => 'nullable|string|max:15',
             'password' => 'required|string|min:6',
             // 'role' => 'required|in:ADMIN,OWNER,USER',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
+            'image' => 'nullable',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['status' => false, 'message' => $validator->errors()], 400);
         }
 
+        // $path = null;
+        // if ($request->has('image')) {
+        //     $image = $request->file('image');
+        //     $path = $image->store('profile_images', 'public');
+        //     // $imagePath = asset('storage/' . $path);
+        // }
         $path = null;
         if ($request->has('image')) {
             $image = $request->file('image');
-            $path = $image->store('profile_images', 'public');
-            // $imagePath = asset('storage/' . $path);
+            $extension = $image->getClientOriginalExtension();
+            $new_image = time() . '.' . $extension;
+            $path = $image->move(public_path('uploads/profile_images'), $new_image);
         }
-
+// return $new_image;
         $otp = rand(1000, 9999);
         $otp_expires_at = now()->addMinutes(10);
 
@@ -53,7 +60,7 @@ class AuthController extends Controller
             'contact' => $request->contact,
             'password' => Hash::make($request->password),
             'role' => 'USER', // Set default role as 'user'
-            'image' => $path,
+            'image' => $new_image,
             'otp' => $otp,
             'otp_expires_at' => $otp_expires_at,
             'status' => 'inactive',
@@ -120,7 +127,7 @@ class AuthController extends Controller
         }
 
         $user = Auth::guard('api')->user();
-        $imageUrl = $user->image ? asset('storage/' . $user->image) : asset('img/1.webp');
+        // $imageUrl = $user->image ? asset('storage/' . $user->image) : asset('img/1.webp');
 
         return response()->json([
             'status' => 'success',
@@ -131,7 +138,7 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'role' => $user->role,
                 'email_verified_at' => $user->email_verified_at,
-                'image' => $imageUrl,
+                'image' => $user->image,
             ],
         ], 200);
     }
@@ -151,7 +158,7 @@ class AuthController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
+            'name' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:255',
             'contact' => 'nullable|string|max:16',
             'password' => 'nullable|string|min:6|confirmed',
@@ -177,20 +184,27 @@ class AuthController extends Controller
             $user->password = Hash::make($validatedData['password']);
         }
 
-        // Handle image upload
+
         if ($request->hasFile('image')) {
-            // Delete the existing image if it exists
-            if (!empty($user->image)) {
-                $oldImagePath = str_replace(asset('storage/'), '', $user->image);
-                if (Storage::disk('public')->exists($oldImagePath)) {
-                    Storage::disk('public')->delete($oldImagePath);
+            $existingImage = $user->image;
+
+            if ($existingImage) {
+                $oldImage = parse_url($existingImage);
+                $filePath = ltrim($oldImage['path'], '/');
+                if (file_exists($filePath)) {
+                    unlink($filePath); // Delete the existing image
                 }
             }
 
-            // Store the new image
-            $path = $request->file('image')->store('profile_images', 'public');
-            $user->image = $path;
+            // Upload new image
+            $image = $request->file('image');
+            $extension = $image->getClientOriginalExtension();
+            $newName = time() . '.' . $extension;
+            $image->move(public_path('uploads/profile_images'), $newName);
+
+            $user->image = $newName;
         }
+
 
         $user->save();
 
@@ -204,7 +218,7 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'address' => $user->address,
                 'contact' => $user->contact,
-                'image' => $user->image ? asset('storage/' . $user->image) : null,
+                'image' => $user->image,
                 'role' => $user->role,
             ],
         ], 200);
@@ -264,36 +278,6 @@ class AuthController extends Controller
             'message' => 'OTP sent to your email.'], 200);
     }
 
-    // this otp verify for forgot pass
-    // public function verifyOtp(Request $request)
-    // {
-    //     $request->validate([
-    //         'email' => 'required|email',
-    //         'otp' => 'required|numeric',
-    //     ]);
-
-    //     $tokenData = DB::table('users')
-    //         ->where('email', $request->email)
-    //         ->where('token', $request->otp)
-    //         ->where('created_at', '>=', now()->subMinutes(15))
-    //         ->first();
-
-    //     if (!$tokenData) {
-    //         return response()->json(['error' => 'Invalid or expired OTP.'], 400);
-    //     }
-
-    //     $user = User::where('email', $request->email)->first();
-    //     if (!$user) {
-    //         return response()->json(['error' => 'User not found.'], 404);
-    //     }
-
-    //     $resetToken = JWTAuth::fromUser($user);
-
-    //     return response()->json([
-    //         'message' => 'OTP verified successfully.',
-    //         'reset_token' => $resetToken,
-    //     ], 200);
-    // }
     // reset password
     public function resetPassword(Request $request)
     {
@@ -359,11 +343,5 @@ class AuthController extends Controller
             'message' => 'Successfully logged out.',
         ]);
     }
-
-
-
-
-
-
 
 }

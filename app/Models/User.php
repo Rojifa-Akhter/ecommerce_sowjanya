@@ -36,7 +36,7 @@ class User extends Authenticatable implements JWTSubject
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'image' => 'array',
+            // 'image' => 'array',
         ];
     }
     public function getJWTIdentifier()
@@ -56,5 +56,9 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->hasMany(Review::class);
     }
-
+    public function getImageAttribute($image)
+    {
+        $defaultImage = 'default_user.png';
+        return asset('uploads/profile_images/' . ($image ?: $defaultImage));
+    }
 }

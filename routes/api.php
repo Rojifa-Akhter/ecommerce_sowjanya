@@ -72,10 +72,10 @@ Route::middleware(['auth:api', 'ADMIN'])->group(function () {
 
 
 });
-Route::get('/product-view', [UserController::class, 'productView']);
 
 Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/blog-list', [BlogController::class, 'blogList']);
+    Route::get('/product-view', [UserController::class, 'productView']);
 
     Route::get('/blog-details/{id}', [BlogController::class, 'blogDetails']);
     Route::get('/aboutus', [UserController::class, 'aboutUs']);
