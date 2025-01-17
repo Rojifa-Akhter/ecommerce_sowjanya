@@ -226,7 +226,6 @@ class UserController extends Controller
                 'message' => 'Unauthorized',
             ], 401);
         }
-        $user->image = $user->image ?? asset('img/1.webp');
 
         return response()->json([
             'status' => 'success',

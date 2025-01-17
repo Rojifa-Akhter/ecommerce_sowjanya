@@ -16,10 +16,11 @@ class sendOTP extends Mailable
     /**
      * Create a new message instance.
      */
-    public $otp;
-    public function __construct($otp)
+    public $otp,$user_name;
+    public function __construct($otp,$user_name)
     {
         $this->otp=$otp;
+        $this->user_name=$user_name;
     }
 
     /**
@@ -28,7 +29,7 @@ class sendOTP extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Send OTP',
+            subject: 'Your Golden Ticket to Alder & Rhodes Awaits!',
         );
     }
 
