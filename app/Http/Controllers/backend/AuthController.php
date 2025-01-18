@@ -43,12 +43,12 @@ class AuthController extends Controller
         //     // $imagePath = asset('storage/' . $path);
         // }
         $path = null;
-        if ($request->has('image')) {
-            $image = $request->file('image');
-            $extension = $image->getClientOriginalExtension();
-            $new_image = time() . '.' . $extension;
-            $path = $image->move(public_path('uploads/profile_images'), $new_image);
-        }
+        // if ($request->has('image')) {
+        //     $image = $request->file('image');
+        //     $extension = $image->getClientOriginalExtension();
+        //     $new_image = time() . '.' . $extension;
+        //     $path = $image->move(public_path('uploads/profile_images'), $new_image);
+        // }
 // return $new_image;
         $otp = rand(1000, 9999);
         $otp_expires_at = now()->addMinutes(10);
@@ -60,14 +60,14 @@ class AuthController extends Controller
             'contact' => $request->contact,
             'password' => Hash::make($request->password),
             'role' => 'USER', // Set default role as 'user'
-            'image' => $new_image,
+            // 'image' => $new_image,
             'otp' => $otp,
             'otp_expires_at' => $otp_expires_at,
             'status' => 'inactive',
         ]);
-
+$user_name=$request->name;
         try {
-            Mail::to($user->email)->send(new sendOTP($otp));
+            Mail::to($user->email)->send(new sendOTP($otp,$user_name));
         } catch (Exception $e) {
             Log::error($e->getMessage());
         }

@@ -1,11 +1,9 @@
 <?php
-
 namespace App\Mail;
 
 use App\Models\Order;
 use App\Models\Product;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -19,16 +17,18 @@ class OrderPlaced extends Mailable
     public $product;
     public $address;
     public $orderDate;
+    public $user_name;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(Order $order, Product $product, string $address, string $orderDate)
+    public function __construct(Order $order, Product $product, string $address, string $orderDate, $user_name)
     {
-        $this->order = $order;
-        $this->product = $product;
-        $this->address = $address;
+        $this->order     = $order;
+        $this->product   = $product;
+        $this->address   = $address;
         $this->orderDate = $orderDate;
+        $this->user_name = $user_name;
     }
 
     /**
@@ -37,7 +37,7 @@ class OrderPlaced extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Order Placed - Invoice',
+            subject: 'Your Stylish Receipt is Ready – It’s as Chic as You Are!',
         );
     }
 
@@ -47,7 +47,7 @@ class OrderPlaced extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'email.order',  // The view you will use to design the email template
+            view: 'email.order', // The view you will use to design the email template
         );
     }
 

@@ -155,10 +155,11 @@ class OrderController extends Controller
             $product = Product::firstOrFail($request->product_id);
             $orderDate = $order->created_at->format('Y-m-d H:i:s');
             $address = $request->street_address . ', ' . $request->city . ', ' . $request->state;
-            
+
             // Send the email to the user
             $user = User::findOrFail($request->user_id);
-            Mail::to($user->email)->send(new MailOrderPlaced($order, $product, $address, $orderDate));
+            $user_name=$user->name;
+            Mail::to($user->email)->send(new MailOrderPlaced($order, $product, $address, $orderDate,$user_name));
 
             $adminUsers = User::where('role', 'ADMIN')->get();
             foreach ($adminUsers as $admin) {
