@@ -84,7 +84,7 @@
     <div class="email-container">
 
         <div class="content">
-            <p>Hey <strong>$user_name</strong>,</p>
+            <p>Hey <strong>{{ $user_name }}</strong>,</p>
             <p>
                 Thank you for shopping with Alder & Rhodes – your wardrobe
                 just leveled up! 🎉
@@ -116,7 +116,7 @@
                 </p>
                 <p>
                     We’re all ears at
-                    <a href="mailto:support@alderandrhodes.com">[Support Email]</a>.
+                    <a href="mailto:support@alderandrhodes.com">Support Email</a>.
                 </p>
             </div>
         </div>

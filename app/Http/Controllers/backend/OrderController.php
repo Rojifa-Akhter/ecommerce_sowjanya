@@ -103,6 +103,7 @@ class OrderController extends Controller
 
     public function paymentSuccess(Request $request)
     {
+
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:users,id',
             'product_id' => 'required|exists:products,id',
@@ -152,13 +153,15 @@ class OrderController extends Controller
             }
 
             // Get product details for notification
-            $product = Product::firstOrFail($request->product_id);
+            $product = Product::findOrFail($request->product_id);
             $orderDate = $order->created_at->format('Y-m-d H:i:s');
             $address = $request->street_address . ', ' . $request->city . ', ' . $request->state;
 
             // Send the email to the user
             $user = User::findOrFail($request->user_id);
+
             $user_name=$user->name;
+      
             Mail::to($user->email)->send(new MailOrderPlaced($order, $product, $address, $orderDate,$user_name));
 
             $adminUsers = User::where('role', 'ADMIN')->get();

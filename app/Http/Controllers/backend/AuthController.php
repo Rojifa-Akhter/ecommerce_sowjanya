@@ -265,9 +265,9 @@ $user_name=$request->name;
             ['email' => $request->email],
             ['otp' => $otp, 'created_at' => now()]
         );
-
+        $user_name=$user->name;
         try {
-            Mail::to($request->email)->send(new sendOTP($otp));
+            Mail::to($request->email)->send(new sendOTP($otp,$user_name));
         } catch (Exception $e) {
             Log::error($e->getMessage());
             return response()->json(['error' => 'Failed to send OTP.'], 500);
@@ -315,9 +315,10 @@ $user_name=$request->name;
             ['email' => $request->email],
             ['otp' => $otp, 'created_at' => now()]
         );
+        $user_name=$user->name;
 
         try {
-            Mail::to($request->email)->send(new sendOTP($otp));
+            Mail::to($request->email)->send(new sendOTP($otp,$user_name=$user->name));
         } catch (Exception $e) {
             Log::error($e->getMessage());
             return response()->json(['error' => 'Failed to resend OTP.'], 500);

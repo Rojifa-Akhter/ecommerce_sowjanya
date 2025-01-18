@@ -13,11 +13,7 @@ class OrderPlaced extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $order;
-    public $product;
-    public $address;
-    public $orderDate;
-    public $user_name;
+    public $order,$product,$address,$orderDate,$user_name;
 
     /**
      * Create a new message instance.
