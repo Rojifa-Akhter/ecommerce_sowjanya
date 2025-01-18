@@ -80,8 +80,8 @@ Route::middleware(['auth:api', 'USER'])->group(function () {
     Route::get('/blog-details/{id}', [BlogController::class, 'blogDetails']);
     Route::get('/aboutus', [UserController::class, 'aboutUs']);
 
-    Route::get('/my-order-list', [UserController::class, 'myOrder']);
-    Route::get('/own-profile', [UserController::class, 'ownProfile']);
+    Route::get('my-order-list', [UserController::class, 'myOrder']);
+    Route::get('own-profile', [UserController::class, 'ownProfile']);
     Route::get('/notifications', [UserController::class, 'getNotifications']);
     Route::get('/notifications/{id}', [UserController::class, 'markNotificationAsRead']);
     Route::get('/showProduct/{id}', [OrderController::class, 'showProduct']);
