@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\backend;
 
 use App\Http\Controllers\Controller;
@@ -12,7 +11,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -23,13 +21,13 @@ class AuthController extends Controller
         // return $request;
 
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|unique:users,email',
-            'address' => 'nullable|string|max:255',
-            'contact' => 'nullable|string|max:15',
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|string|email|unique:users,email',
+            'address'  => 'nullable|string|max:255',
+            'contact'  => 'nullable|string|max:15',
             'password' => 'required|string|min:6',
             // 'role' => 'required|in:ADMIN,OWNER,USER',
-            'image' => 'nullable',
+            'image'    => 'nullable',
         ]);
 
         if ($validator->fails()) {
@@ -50,24 +48,24 @@ class AuthController extends Controller
         //     $path = $image->move(public_path('uploads/profile_images'), $new_image);
         // }
 // return $new_image;
-        $otp = rand(1000, 9999);
+        $otp            = rand(1000, 9999);
         $otp_expires_at = now()->addMinutes(10);
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'address' => $request->address,
-            'contact' => $request->contact,
-            'password' => Hash::make($request->password),
-            'role' => 'USER', // Set default role as 'user'
-            // 'image' => $new_image,
-            'otp' => $otp,
+            'name'           => $request->name,
+            'email'          => $request->email,
+            'address'        => $request->address,
+            'contact'        => $request->contact,
+            'password'       => Hash::make($request->password),
+            'role'           => 'USER', // Set default role as 'user'
+                                        // 'image' => $new_image,
+            'otp'            => $otp,
             'otp_expires_at' => $otp_expires_at,
-            'status' => 'inactive',
+            'status'         => 'inactive',
         ]);
-$user_name=$request->name;
+        $user_name = $request->name;
         try {
-            Mail::to($user->email)->send(new sendOTP($otp,$user_name));
+            Mail::to($user->email)->send(new sendOTP($otp, $user_name));
         } catch (Exception $e) {
             Log::error($e->getMessage());
         }
@@ -78,7 +76,7 @@ $user_name=$request->name;
         };
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => $message], 200);
     }
     // verify email
@@ -94,15 +92,15 @@ $user_name=$request->name;
         $user = User::where('otp', $request->otp)->first();
 
         if ($user) {
-            $user->otp = null;
+            $user->otp               = null;
             $user->email_verified_at = now();
-            $user->status = 'active';
+            $user->status            = 'active';
             $user->save();
 
             $token = JWTAuth::fromUser($user);
 
             return response()->json([
-                'status' => 'success',
+                'status'  => 'success',
                 'message' => 'OTP verified successfully.',
                 // 'access_token' => $token,
                 // 'token_type' => 'bearer',
@@ -118,11 +116,11 @@ $user_name=$request->name;
         $credentials = $request->only('email', 'password');
 
         $user = User::where('email', $request->email)->first();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['status' => 'error', 'message' => 'Email not found.'], 404);
         }
 
-        if (!$token = Auth::guard('api')->attempt($credentials)) {
+        if (! $token = Auth::guard('api')->attempt($credentials)) {
             return response()->json(['status' => 'error', 'message' => 'Invalid password.'], 401);
         }
 
@@ -130,15 +128,15 @@ $user_name=$request->name;
         // $imageUrl = $user->image ? asset('storage/' . $user->image) : asset('img/1.webp');
 
         return response()->json([
-            'status' => 'success',
-            'access_token' => $token,
-            'token_type' => 'bearer',
+            'status'           => 'success',
+            'access_token'     => $token,
+            'token_type'       => 'bearer',
             'user_information' => [
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role,
+                'name'              => $user->name,
+                'email'             => $user->email,
+                'role'              => $user->role,
                 'email_verified_at' => $user->email_verified_at,
-                'image' => $user->image,
+                'image'             => $user->image,
             ],
         ], 200);
     }
@@ -153,37 +151,36 @@ $user_name=$request->name;
 
         $user = Auth::guard('api')->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['status' => 'error', 'message' => 'User not authenticated.'], 401);
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'nullable|string|max:255',
-            'address' => 'nullable|string|max:255',
-            'contact' => 'nullable|string|max:16',
+            'name'     => 'nullable|string|max:255',
+            'address'  => 'nullable|string|max:255',
+            'contact'  => 'nullable|string|max:16',
             'password' => 'nullable|string|min:6|confirmed',
-            'image' => 'required',
+            'image'    => 'required',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
+                'errors'  => $validator->errors(),
             ], 422);
         }
 
         $validatedData = $validator->validated();
 
         // Update user data
-        $user->name = $validatedData['name'] ?? $user->name;
+        $user->name    = $validatedData['name'] ?? $user->name;
         $user->address = $validatedData['address'] ?? $user->address;
         $user->contact = $validatedData['contact'] ?? $user->contact;
 
-        if (!empty($validatedData['password'])) {
+        if (! empty($validatedData['password'])) {
             $user->password = Hash::make($validatedData['password']);
         }
-
 
         if ($request->hasFile('image')) {
             $existingImage = $user->image;
@@ -197,29 +194,28 @@ $user_name=$request->name;
             }
 
             // Upload new image
-            $image = $request->file('image');
+            $image     = $request->file('image');
             $extension = $image->getClientOriginalExtension();
-            $newName = time() . '.' . $extension;
+            $newName   = time() . '.' . $extension;
             $image->move(public_path('uploads/profile_images'), $newName);
 
             $user->image = $newName;
         }
 
-
         $user->save();
 
         // Return the updated user profile
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Profile updated successfully.',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
+            'user'    => [
+                'id'      => $user->id,
+                'name'    => $user->name,
+                'email'   => $user->email,
                 'address' => $user->address,
                 'contact' => $user->contact,
-                'image' => $user->image,
-                'role' => $user->role,
+                'image'   => $user->image,
+                'role'    => $user->role,
             ],
         ], 200);
     }
@@ -229,16 +225,16 @@ $user_name=$request->name;
     {
         $request->validate([
             'current_password' => 'required',
-            'new_password' => 'required|string|min:6|confirmed',
+            'new_password'     => 'required|string|min:6|confirmed',
         ]);
 
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['error' => 'User not authenticated.'], 401);
         }
 
-        if (!Hash::check($request->current_password, $user->password)) {
+        if (! Hash::check($request->current_password, $user->password)) {
             return response()->json(['error' => 'Current password is incorrect.'], 403);
         }
 
@@ -246,7 +242,7 @@ $user_name=$request->name;
         $user->save();
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Password changed successfully']);
     }
     // forgate password
@@ -256,7 +252,7 @@ $user_name=$request->name;
 
         $user = User::where('email', $request->email)->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['error' => 'Email not registered.'], 404);
         }
         $otp = rand(1000, 9999);
@@ -265,16 +261,16 @@ $user_name=$request->name;
             ['email' => $request->email],
             ['otp' => $otp, 'created_at' => now()]
         );
-        $user_name=$user->name;
+        $user_name = $user->name;
         try {
-            Mail::to($request->email)->send(new sendOTP($otp,$user_name));
+            Mail::to($request->email)->send(new sendOTP($otp, $user_name));
         } catch (Exception $e) {
             Log::error($e->getMessage());
             return response()->json(['error' => 'Failed to send OTP.'], 500);
         }
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'OTP sent to your email.'], 200);
     }
 
@@ -283,12 +279,12 @@ $user_name=$request->name;
     {
         // return $request;
         $request->validate([
-            'email' => 'required|email',
+            'email'    => 'required|email',
             'password' => 'required|string|min:6|confirmed',
         ]);
 
         $user = User::where('email', $request->email)->first();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['error' => 'User not found.'], 404);
         }
 
@@ -296,7 +292,7 @@ $user_name=$request->name;
         $user->save();
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Password reset successful.'], 200);
     }
     public function resendOtp(Request $request)
@@ -305,7 +301,7 @@ $user_name=$request->name;
 
         $user = User::where('email', $request->email)->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['error' => 'Email not registered.'], 404);
         }
 
@@ -315,24 +311,24 @@ $user_name=$request->name;
             ['email' => $request->email],
             ['otp' => $otp, 'created_at' => now()]
         );
-        $user_name=$user->name;
+        $user_name = $user->name;
 
         try {
-            Mail::to($request->email)->send(new sendOTP($otp,$user_name=$user->name));
+            Mail::to($request->email)->send(new sendOTP($otp, $user_name = $user->name));
         } catch (Exception $e) {
             Log::error($e->getMessage());
             return response()->json(['error' => 'Failed to resend OTP.'], 500);
         }
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'OTP resent to your email.'], 200);
     }
     public function logout()
     {
-        if (!auth('api')->check()) {
+        if (! auth('api')->check()) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'User is not authenticated.',
             ], 401);
         }
@@ -340,7 +336,7 @@ $user_name=$request->name;
         auth('api')->logout();
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Successfully logged out.',
         ]);
     }

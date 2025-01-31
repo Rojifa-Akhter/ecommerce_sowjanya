@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\backend;
 
 use App\Http\Controllers\Controller;
@@ -8,12 +7,12 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use App\Notifications\OrderPlaced;
-use Illuminate\Support\Facades\Mail;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Stripe\PaymentIntent;
 use Stripe\Stripe;
@@ -35,29 +34,29 @@ class OrderController extends Controller
         $product->average_rating = min($averageRating, 5);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'data get sccessfully',
             'product' => [
-                'id' => $product->id,
-                'title' => $product->title,
-                'category' => $product->category,
-                'brand' => $product->brand,
-                'image' => $product->image,
-                'price' => $product->price,
-                'sale_price' => $product->sale_price,
-                'quantity' => $product->quantity,
-                'SKU' => $product->SKU,
-                'stock' => $product->stock,
-                'tags' => $product->tags,
-                'color' => $product->color,
-                'size' => $product->size,
-                'description' => $product->description,
-                'no_of_sale' => $product->no_of_sale,
-                'created_at' => $product->created_at,
-                'updated_at' => $product->updated_at,
-                'reviews_count' => $product->reviews_count,
+                'id'                 => $product->id,
+                'title'              => $product->title,
+                'category'           => $product->category,
+                'brand'              => $product->brand,
+                'image'              => $product->image,
+                'price'              => $product->price,
+                'sale_price'         => $product->sale_price,
+                'quantity'           => $product->quantity,
+                'SKU'                => $product->SKU,
+                'stock'              => $product->stock,
+                'tags'               => $product->tags,
+                'color'              => $product->color,
+                'size'               => $product->size,
+                'description'        => $product->description,
+                'no_of_sale'         => $product->no_of_sale,
+                'created_at'         => $product->created_at,
+                'updated_at'         => $product->updated_at,
+                'reviews_count'      => $product->reviews_count,
                 'reviews_sum_rating' => $product->reviews_sum_rating,
-                'rating' => $product->average_rating,
+                'rating'             => $product->average_rating,
             ],
         ]);
 
@@ -66,13 +65,13 @@ class OrderController extends Controller
     public function payment(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:1',
+            'amount'         => 'required|numeric|min:1',
             'payment_method' => 'required|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => $validator->errors(),
             ], 400);
         }
@@ -80,22 +79,22 @@ class OrderController extends Controller
         Stripe::setApiKey(env('STRIPE_SECRET'));
         try {
             $paymentIntent = PaymentIntent::create([
-                'amount' => $request->amount * 100,
-                'currency' => 'usd',
+                'amount'         => $request->amount * 100,
+                'currency'       => 'usd',
                 'payment_method' => $request->payment_method,
                 // 'confirmation_method' => 'manual',
-                'confirm' => false,
+                'confirm'        => false,
             ]);
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Payment intent created successfully.',
-                'data' => $paymentIntent,
+                'data'    => $paymentIntent,
             ], 200);
         } catch (Exception $e) {
             Log::error($e->getMessage());
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Payment failed.',
             ], 200);
         }
@@ -105,33 +104,33 @@ class OrderController extends Controller
     {
 
         $validator = Validator::make($request->all(), [
-            'user_id' => 'required|exists:users,id',
-            'product_id' => 'required|exists:products,id',
+            'user_id'        => 'required|exists:users,id',
+            'product_id'     => 'required|exists:products,id',
             'transaction_id' => 'nullable|string',
-            'amount' => 'required|numeric|min:0.01',
+            'amount'         => 'required|numeric|min:0.01',
             'street_address' => 'nullable|string',
-            'city' => 'nullable|string',
-            'state' => 'nullable|string',
+            'city'           => 'nullable|string',
+            'state'          => 'nullable|string',
             'payment_status' => 'required|in:success,failure',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => $validator->errors(),
             ], 400);
         }
 
         try {
             $order = Order::create([
-                'user_id' => $request->user_id,
-                'product_id' => $request->product_id,
+                'user_id'        => $request->user_id,
+                'product_id'     => $request->product_id,
                 'transaction_id' => $request->transaction_id,
-                'amount' => $request->amount,
-                'status' => $request->payment_status === 'success' ? 'delivered' : 'pending',
+                'amount'         => $request->amount,
+                'status'         => $request->payment_status === 'success' ? 'delivered' : 'pending',
                 'street_address' => $request->street_address,
-                'city' => $request->city,
-                'contact' => $request->contact,
+                'city'           => $request->city,
+                'contact'        => $request->contact,
             ]);
 
             // If payment is successful, update the product's sales count and quantity
@@ -145,7 +144,7 @@ class OrderController extends Controller
                         $product->update(['no_of_sale' => 1]);
                     } else {
                         return response()->json([
-                            'status' => false,
+                            'status'  => false,
                             'message' => 'Not enough stock available.',
                         ], 400);
                     }
@@ -153,16 +152,16 @@ class OrderController extends Controller
             }
 
             // Get product details for notification
-            $product = Product::findOrFail($request->product_id);
+            $product   = Product::findOrFail($request->product_id);
             $orderDate = $order->created_at->format('Y-m-d H:i:s');
-            $address = $request->street_address . ', ' . $request->city . ', ' . $request->state;
+            $address   = $request->street_address . ', ' . $request->city . ', ' . $request->state;
 
             // Send the email to the user
             $user = User::findOrFail($request->user_id);
 
-            $user_name=$user->name;
-      
-            Mail::to($user->email)->send(new MailOrderPlaced($order, $product, $address, $orderDate,$user_name));
+            $user_name = $user->name;
+
+            Mail::to($user->email)->send(new MailOrderPlaced($order, $product, $address, $orderDate, $user_name));
 
             $adminUsers = User::where('role', 'ADMIN')->get();
             foreach ($adminUsers as $admin) {
@@ -170,14 +169,14 @@ class OrderController extends Controller
             }
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Payment recorded successfully, notification sent to admins, and product sales updated.',
-                'data' => $order,
+                'data'    => $order,
             ], 200);
         } catch (Exception $e) {
             Log::error($e->getMessage());
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Failed to record payment.',
 
             ], 500);
@@ -203,19 +202,19 @@ class OrderController extends Controller
                 $order->update(['status' => 'canceled']);
 
                 return response()->json([
-                    'status' => true,
+                    'status'  => true,
                     'message' => 'Order canceled successfully, stock updated.',
                 ], 200);
             } else {
                 return response()->json([
-                    'status' => false,
+                    'status'  => false,
                     'message' => 'Order cannot be canceled, it is not yet delivered.',
                 ], 400);
             }
         } catch (Exception $e) {
             Log::error($e->getMessage());
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Failed to cancel the order.',
             ], 500);
         }
@@ -224,29 +223,29 @@ class OrderController extends Controller
     public function getAdminNotifications(Request $request)
     {
         $perPage = $request->query('per_page', 10);
-        $user = Auth::user();
+        $user    = Auth::user();
 
         if ($user->role !== 'ADMIN') {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Unauthorized access. Only admins can view notifications.',
             ], 403);
         }
 
         $notifications = $user->notifications()->paginate($perPage);
-        $unread = DB::table('notifications')->where('notifiable_id', 1)->whereNull('read_at')->count();
+        $unread        = DB::table('notifications')->where('notifiable_id', 1)->whereNull('read_at')->count();
 
         if ($notifications->isEmpty()) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'No notifications available.',
             ], 404);
         }
 
         return response()->json([
-            'status' => 'success',
+            'status'              => 'success',
             'unread_notification' => $unread,
-            'notifications' => $notifications,
+            'notifications'       => $notifications,
         ], 200);
     }
 
@@ -256,23 +255,23 @@ class OrderController extends Controller
 
         if ($user->role !== 'ADMIN') {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Unauthorized access. Only admins can view notifications.',
             ], 403);
         }
 
         $notification = $user->notifications()->find($notificationId);
 
-        if (!$notification) {
+        if (! $notification) {
             return response()->json(['message' => 'Notification not found.'], 404);
         }
 
-        if (!$notification->read_at) {
+        if (! $notification->read_at) {
             $notification->markAsRead();
         }
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Notification marked as read.'], 200);
     }
     public function markAllNotification(Request $request)
@@ -281,7 +280,7 @@ class OrderController extends Controller
 
         if ($user->role !== 'ADMIN') {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Unauthorized access. Only admins can manage notifications.',
             ], 403);
         }
@@ -295,7 +294,7 @@ class OrderController extends Controller
         $notifications->markAsRead();
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'All notifications marked as read.',
         ], 200);
     }
